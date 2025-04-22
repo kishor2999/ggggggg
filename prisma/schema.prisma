@@ -1,0 +1,200 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// User model (includes both Car Wash and E-commerce customers)
+model User {
+  id           String        @id @default(uuid()) // Unique ID for the user
+  clerkId      String?       @unique // Clerk user ID for authentication
+  name         String        // Full name of the user
+  email        String        @unique // Email of the user
+  phone        String?       @unique // Optional phone number for the user
+  profileImage String?       // Optional URL for profile image
+  role         String        // Role assigned to the user (e.g., CUSTOMER, ADMIN, STAFF)
+  createdAt    DateTime      @default(now()) // Account creation timestamp
+  updatedAt    DateTime      @updatedAt // Last update timestamp
+  appointments Appointment[] // Appointments for Car Wash services
+  vehicles     Vehicle[]     // Vehicles linked to the user
+  payments     Payment[]     // Payments made by the user
+  reviews      Review[]      // Reviews given by the user for services
+  orders       Order[]       // Orders placed by the user in the e-commerce system
+  staff        Staff?        // Staff profile if the user is a staff member
+  staffReviews StaffReview[] // Reviews written by the user
+}
+
+// Service model for car wash (includes the services offered)
+model Service {
+  id           String        @id @default(uuid()) // Unique ID for the service
+  name         String        // Name of the service (e.g., "Full Car Wash")
+  description  String?       // Description of the service
+  price        Decimal       // Price for the service
+  duration     Int           // Duration for the service in minutes
+  createdAt    DateTime      @default(now()) // Timestamp when service was created
+  updatedAt    DateTime      @updatedAt // Timestamp for last update of the service
+  features     Feature[]     // Features associated with the service
+  appointments Appointment[] // Appointments using this service
+  reviews      Review[]      // Reviews for this service
+}
+
+// Feature model to define special features for each service
+model Feature {
+  id        String   @id @default(uuid()) // Unique ID for the feature
+  name      String   // Name of the feature (e.g., "Wheel Cleaning")
+  service   Service  @relation(fields: [serviceId], references: [id]) // Link to a specific service
+  serviceId String   // Service ID that the feature belongs to
+  createdAt DateTime @default(now()) // Timestamp when feature was created
+  updatedAt DateTime @updatedAt // Timestamp for last update
+}
+
+// Appointment model (Car Wash bookings and services)
+model Appointment {
+  id                 String     @id @default(uuid()) // Unique ID for the appointment
+  user               User       @relation(fields: [userId], references: [id]) // User booking the appointment
+  userId             String     // ID of the user
+  service            Service    @relation(fields: [serviceId], references: [id]) // Service chosen by the user (Car Wash)
+  serviceId          String     // ID of the selected service
+  vehicle            Vehicle    @relation(fields: [vehicleId], references: [id]) // Vehicle linked to the appointment
+  vehicleId          String     // ID of the vehicle
+  staff              Staff?     @relation(fields: [staffId], references: [id]) // Staff member assigned to the appointment
+  staffId            String?    // ID of the staff member (optional)
+  date               DateTime   // Date of the appointment
+  timeSlot           String     // Time slot for the appointment
+  status             String     @default("PENDING") // Status of the appointment
+  price              Decimal    // Total cost of the appointment
+  notes              String?    // Additional notes for the appointment
+  paymentStatus      String     @default("PENDING") // Payment status (PENDING, HALF_PAID, PAID, etc.)
+  paymentMethod      String     // Payment method used (e.g., PAYPAL, UPI, CREDIT_CARD, ESEWA)
+  paymentType        String     @default("FULL") // Payment type (FULL or HALF)
+  needsStaffAssignment Boolean    @default(true) // Flag indicating if a staff assignment is needed
+  payment            Payment?   // Payment associated with this appointment
+  createdAt          DateTime   @default(now()) // Appointment creation timestamp
+  updatedAt          DateTime   @updatedAt // Last update timestamp
+}
+
+// Vehicle model (linked to users for Car Wash appointments)
+model Vehicle {
+  id           String        @id @default(uuid()) // Unique ID for the vehicle
+  user         User          @relation(fields: [userId], references: [id]) // User who owns the vehicle
+  userId       String        // User ID linked to the vehicle
+  type         String        // Vehicle type (e.g., Sedan, SUV)
+  model        String        // Vehicle model
+  plate        String        @unique // Vehicle license plate number (unique)
+  createdAt    DateTime      @default(now()) // Timestamp when vehicle was created
+  updatedAt    DateTime      @updatedAt // Last update timestamp
+  appointments Appointment[] // Appointments associated with this vehicle
+}
+
+// Payment model (Handles payments for both Car Wash and E-commerce)
+model Payment {
+  id            String        @id @default(uuid()) // Unique ID for the payment
+  user          User          @relation(fields: [userId], references: [id]) // User making the payment
+  userId        String        // User ID
+  order         Order?        @relation(fields: [orderId], references: [id]) // E-commerce order (nullable)
+  orderId       String?       @unique // Order ID (for E-commerce payments)
+  appointment   Appointment?  @relation(fields: [appointmentId], references: [id]) // Car Wash appointment (nullable)
+  appointmentId String?       @unique // Appointment ID (for Car Wash payments)
+  amount        Decimal       // Total payment amount
+  status        String        @default("PENDING") // Payment status
+  method        String        // Payment method used (CREDIT_CARD, UPI, PAYPAL, etc.)
+  transactionId String?       // Transaction ID for tracking
+  createdAt     DateTime      @default(now()) // Timestamp when payment was created
+  updatedAt     DateTime      @updatedAt // Last update timestamp
+}
+
+// Product model (For E-commerce functionality)
+model Product {
+  id          String      @id @default(uuid()) // Unique ID for the product
+  name        String      // Name of the product
+  description String?     // Product description
+  price       Decimal     // Price of the product
+  stock       Int         @default(0) // Available stock for the product
+  category    Category    @relation(fields: [categoryId], references: [id]) // Category for the product
+  categoryId  String      // Category ID
+  images      String[]    // Array of image URLs for the product
+  createdAt   DateTime    @default(now()) // Timestamp when product was created
+  updatedAt   DateTime    @updatedAt // Last update timestamp
+  orderItems  OrderItem[] // Order items for this product
+}
+
+// Category model (For organizing products in E-commerce)
+model Category {
+  id        String      @id @default(uuid()) // Unique ID for the category
+  name      String      @unique // Unique name for the category (e.g., "Electronics")
+  products  Product[]   // List of products in this category
+  createdAt DateTime    @default(now()) // Timestamp when category was created
+  updatedAt DateTime    @updatedAt // Last update timestamp
+}
+
+// Order model (E-commerce orders made by customers)
+model Order {
+  id            String      @id @default(uuid()) // Unique ID for the order
+  user          User        @relation(fields: [userId], references: [id]) // User who placed the order
+  userId        String      // User ID
+  totalAmount   Decimal     // Total amount of the order
+  status        String      @default("PENDING") // Status of the order (PENDING, SHIPPED, etc.)
+  paymentStatus String      @default("PENDING") // Payment status of the order
+  paymentMethod String      // Payment method used for the order
+  transactionId String?     // Transaction ID for tracking
+  createdAt     DateTime    @default(now()) // Order creation timestamp
+  updatedAt     DateTime    @updatedAt // Last update timestamp
+  items         OrderItem[] // Items in the order
+  payment       Payment?    // Payment associated with the order
+}
+
+// OrderItem model (Products in each e-commerce order)
+model OrderItem {
+  id        String   @id @default(uuid()) // Unique ID for the order item
+  order     Order    @relation(fields: [orderId], references: [id]) // Link to the order
+  orderId   String   // Order ID
+  product   Product  @relation(fields: [productId], references: [id]) // Link to the product
+  productId String   // Product ID
+  quantity  Int      // Quantity of the product in the order
+  price     Decimal  // Price of the product in the order
+  createdAt DateTime @default(now()) // Timestamp when order item was created
+  updatedAt DateTime @updatedAt // Last update timestamp
+}
+
+// Staff model (Staff working on appointments for Car Wash)
+model Staff {
+  id           String        @id @default(uuid()) // Unique ID for the staff member
+  user         User          @relation(fields: [userId], references: [id]) // Link to User model
+  userId       String        @unique // User ID that this staff member is linked to
+  role         String        // Role of the staff member (CLEANER, MANAGER, ADMIN)
+  averageRating Float        @default(0) // Average rating of the staff member
+  totalReviews Int          @default(0) // Total number of reviews received
+  createdAt    DateTime      @default(now()) // Timestamp when staff was created
+  updatedAt    DateTime      @updatedAt // Last update timestamp
+  appointments Appointment[] // Appointments handled by the staff member
+  reviews      StaffReview[] // Reviews received by the staff member
+}
+
+// StaffReview model (Customer reviews for staff members)
+model StaffReview {
+  id        String   @id @default(uuid()) // Unique ID for the review
+  user      User     @relation(fields: [userId], references: [id]) // User who wrote the review
+  userId    String   // User ID
+  staff     Staff    @relation(fields: [staffId], references: [id]) // Staff member being reviewed
+  staffId   String   // Staff ID
+  rating    Int      // Rating given by the user (1-5 stars)
+  comment   String?  // Optional comment for the review
+  createdAt DateTime @default(now()) // Timestamp when the review was created
+  updatedAt DateTime @updatedAt // Last update timestamp
+}
+
+// Review model (Customer reviews for car wash services)
+model Review {
+  id        String   @id @default(uuid()) // Unique ID for the review
+  user      User     @relation(fields: [userId], references: [id]) // User who wrote the review
+  userId    String   // User ID
+  service   Service  @relation(fields: [serviceId], references: [id]) // Service being reviewed
+  serviceId String   // Service ID
+  rating    Int      // Rating given by the user (1-5 stars)
+  comment   String?  // Optional comment for the review
+  createdAt DateTime @default(now()) // Timestamp when the review was created
+  updatedAt DateTime @updatedAt // Last update timestamp
+}
