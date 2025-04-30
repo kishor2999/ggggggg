@@ -37,15 +37,20 @@ export default clerkMiddleware(async (auth, req) => {
   
   // Role-based access control for dashboard routes
   if (isAdminRoute(req) && role !== 'admin') {
-    return NextResponse.redirect(new URL('/dashboard', req.url))
+    return NextResponse.redirect(new URL('/dashboard/user', req.url))
   }
   
-  if (isEmployeeRoute(req) && role !== 'employee' && role !== 'admin') {
-    return NextResponse.redirect(new URL('/dashboard', req.url))
+  if (isEmployeeRoute(req) && role !== 'employee') {
+    return NextResponse.redirect(new URL('/dashboard/user', req.url))
   }
   
-  if (isCustomerRoute(req) && role !== 'customer' && role !== 'employee' && role !== 'admin') {
-    return NextResponse.redirect(new URL('/dashboard', req.url))
+  if (isCustomerRoute(req) && role !== 'customer') {
+    return NextResponse.redirect(new URL('/dashboard/user', req.url))
+  }
+
+  // If user has no role set, redirect to user dashboard
+  if (!role && req.url.includes('/dashboard')) {
+    return NextResponse.redirect(new URL('/dashboard/user', req.url))
   }
 
   return null

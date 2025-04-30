@@ -33,6 +33,9 @@ export default async function Header() {
     dashboardLink = "/dashboard/employee";
   } else if (role === "customer") {
     dashboardLink = "/dashboard/user";
+  } else {
+    // Default to user dashboard if no role is set
+    dashboardLink = "/dashboard/user";
   }
 
   return (
