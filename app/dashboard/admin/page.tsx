@@ -21,6 +21,11 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { useEffect, useState } from "react";
 import { formatCurrency, formatPercentage } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
+import DebugPusher from "./debug-pusher";
+import { SharedNotificationTest } from "@/components/shared-notification-test";
+import { NotificationDebug } from "@/components/notification-debug";
 
 // Define types for our data
 type DashboardStats = {
@@ -63,11 +68,11 @@ export default function AdminDashboard() {
         // Fetch dashboard stats
         const statsResponse = await fetch('/api/dashboard/stats');
         const statsData = await statsResponse.json();
-        
+
         // Fetch recent bookings
         const bookingsResponse = await fetch('/api/dashboard/recent-bookings');
         const bookingsData = await bookingsResponse.json();
-        
+
         setStats(statsData);
         setRecentBookings(bookingsData);
       } catch (error) {
@@ -89,7 +94,7 @@ export default function AdminDashboard() {
       'CANCELLED': 'bg-red-500',
       'SCHEDULED': '',
     };
-    
+
     return statusMap[status] || '';
   };
 
@@ -227,6 +232,183 @@ export default function AdminDashboard() {
             </Card>
           </TabsContent>
         </Tabs>
+
+        <div className="mt-8 p-4 border rounded-lg">
+          <h2 className="text-lg font-semibold mb-4">Test Notifications</h2>
+          <div className="flex flex-col space-y-2 sm:flex-row sm:space-y-0 sm:space-x-2">
+            <Button
+              onClick={async () => {
+                try {
+                  const response = await fetch('/api/test-notification', {
+                    method: 'POST',
+                    headers: {
+                      'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ userRole: 'admin' }),
+                  });
+
+                  if (response.ok) {
+                    toast.success('Test notification sent to Admin');
+                  } else {
+                    toast.error('Failed to send test notification');
+                  }
+                } catch (error) {
+                  toast.error('Error sending notification');
+                }
+              }}
+            >
+              Test Admin Notification
+            </Button>
+
+            <Button
+              onClick={async () => {
+                try {
+                  const response = await fetch('/api/test-notification', {
+                    method: 'POST',
+                    headers: {
+                      'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ userRole: 'user' }),
+                  });
+
+                  if (response.ok) {
+                    toast.success('Test notification sent to User');
+                  } else {
+                    toast.error('Failed to send test notification');
+                  }
+                } catch (error) {
+                  toast.error('Error sending notification');
+                }
+              }}
+            >
+              Test User Notification
+            </Button>
+
+            <Button
+              onClick={async () => {
+                try {
+                  const response = await fetch('/api/test-notification', {
+                    method: 'POST',
+                    headers: {
+                      'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ userRole: 'employee' }),
+                  });
+
+                  if (response.ok) {
+                    toast.success('Test notification sent to Employee');
+                  } else {
+                    toast.error('Failed to send test notification');
+                  }
+                } catch (error) {
+                  toast.error('Error sending notification');
+                }
+              }}
+            >
+              Test Employee Notification
+            </Button>
+          </div>
+
+          <div className="mt-4 pt-4 border-t">
+            <h3 className="text-sm font-medium mb-2">Direct User Notification Test:</h3>
+            <div className="flex flex-col sm:flex-row gap-2">
+              <Button
+                onClick={async () => {
+                  try {
+                    // Find the current user ID
+                    const usersResponse = await fetch('/api/users/current');
+                    if (!usersResponse.ok) {
+                      throw new Error('Failed to fetch current user');
+                    }
+
+                    const userData = await usersResponse.json();
+                    const userId = userData.id;
+
+                    if (!userId) {
+                      toast.error('Could not determine user ID');
+                      return;
+                    }
+
+                    // Send direct notification to this user
+                    const response = await fetch('/api/test-notification', {
+                      method: 'POST',
+                      headers: {
+                        'Content-Type': 'application/json',
+                      },
+                      body: JSON.stringify({
+                        userRole: 'user',
+                        userId: userId
+                      }),
+                    });
+
+                    if (response.ok) {
+                      const result = await response.json();
+                      toast.success(`Direct notification sent to user ID: ${result.userId}`);
+                    } else {
+                      const error = await response.json();
+                      toast.error(`Failed: ${error.error || 'Unknown error'}`);
+                    }
+                  } catch (error) {
+                    console.error(error);
+                    toast.error('Error sending direct notification');
+                  }
+                }}
+              >
+                Send Direct User Notification
+              </Button>
+
+              <Button
+                onClick={async () => {
+                  try {
+                    // Get the first admin user ID
+                    const adminResponse = await fetch('/api/users?role=ADMIN&limit=1');
+                    if (!adminResponse.ok) {
+                      throw new Error('Failed to fetch admin');
+                    }
+
+                    const admins = await adminResponse.json();
+                    if (!admins.length) {
+                      toast.error('No admin users found');
+                      return;
+                    }
+
+                    const adminId = admins[0].id;
+
+                    // Send direct notification to this admin
+                    const response = await fetch('/api/test-notification', {
+                      method: 'POST',
+                      headers: {
+                        'Content-Type': 'application/json',
+                      },
+                      body: JSON.stringify({
+                        userRole: 'admin',
+                        userId: adminId
+                      }),
+                    });
+
+                    if (response.ok) {
+                      const result = await response.json();
+                      toast.success(`Direct notification sent to admin ID: ${result.userId}`);
+                    } else {
+                      const error = await response.json();
+                      toast.error(`Failed: ${error.error || 'Unknown error'}`);
+                    }
+                  } catch (error) {
+                    console.error(error);
+                    toast.error('Error sending direct notification');
+                  }
+                }}
+              >
+                Send Direct Admin Notification
+              </Button>
+            </div>
+          </div>
+        </div>
+
+        <DebugPusher />
+
+        <SharedNotificationTest dashboardType="admin" />
+        <NotificationDebug />
       </div>
     </DashboardLayout>
   );

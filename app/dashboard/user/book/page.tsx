@@ -540,23 +540,26 @@ export default function BookService() {
 
                         if (isToday) {
                           // Parse the time slot to check if it's in the past
-                          const [hourStr, minuteStr, period] = time.match(/(\d+):(\d+) ([AP]M)/).slice(1);
-                          let hour = parseInt(hourStr);
-                          const minute = parseInt(minuteStr);
+                          const matches = time.match(/(\d+):(\d+) ([AP]M)/);
+                          if (matches) {
+                            const [hourStr, minuteStr, period] = matches.slice(1);
+                            let hour = parseInt(hourStr);
+                            const minute = parseInt(minuteStr);
 
-                          // Convert to 24-hour format
-                          if (period === "PM" && hour < 12) {
-                            hour += 12;
-                          } else if (period === "AM" && hour === 12) {
-                            hour = 0;
+                            // Convert to 24-hour format
+                            if (period === "PM" && hour < 12) {
+                              hour += 12;
+                            } else if (period === "AM" && hour === 12) {
+                              hour = 0;
+                            }
+
+                            // Create a date object for this time slot
+                            const timeSlotDate = new Date();
+                            timeSlotDate.setHours(hour, minute, 0, 0);
+
+                            // Compare with current time
+                            isDisabled = timeSlotDate <= today;
                           }
-
-                          // Create a date object for this time slot
-                          const timeSlotDate = new Date();
-                          timeSlotDate.setHours(hour, minute, 0, 0);
-
-                          // Compare with current time
-                          isDisabled = timeSlotDate <= today;
                         }
                       }
 

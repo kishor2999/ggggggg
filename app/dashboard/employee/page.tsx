@@ -22,6 +22,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useState, useEffect } from "react";
+import { SharedNotificationTest } from "@/components/shared-notification-test";
 
 // Task interface
 interface Task {
@@ -187,6 +188,8 @@ export default function EmployeeDashboard() {
             </Card>
           </TabsContent>
         </Tabs>
+
+        <SharedNotificationTest dashboardType="employee" />
       </div>
     </DashboardLayout>
   );

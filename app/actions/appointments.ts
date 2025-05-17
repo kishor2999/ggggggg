@@ -1,6 +1,7 @@
 "use server"
 import prisma from '@/lib/db';
 import { auth } from '@clerk/nextjs/server';
+import { pusherServer } from '@/lib/pusher';
 
 export async function createAppointment(data: {
   serviceId: string;
@@ -77,6 +78,58 @@ export async function createAppointment(data: {
         service: true,
         vehicle: true,
       }
+    });
+
+    // Create notification for the user
+    const userNotification = await prisma.notification.create({
+      data: {
+        userId: user.id,
+        title: 'Booking Confirmed',
+        message: `Your booking for ${service.name} on ${new Date(data.date).toLocaleDateString()} at ${data.timeSlot} has been received.`,
+        type: 'BOOKING',
+        isRead: false
+      }
+    });
+
+    // Trigger Pusher event for the user
+    await pusherServer.trigger(`user-${user.id}`, 'new-notification', {
+      id: userNotification.id,
+      title: userNotification.title,
+      message: userNotification.message,
+      type: userNotification.type,
+      createdAt: userNotification.createdAt
+    });
+
+    // Get admin users to notify them
+    const adminUsers = await prisma.user.findMany({
+      where: { role: 'ADMIN' }
+    });
+
+    // Create notification for all admins
+    for (const admin of adminUsers) {
+      const adminNotification = await prisma.notification.create({
+        data: {
+          userId: admin.id,
+          title: 'New Booking Alert',
+          message: `${user.name} has booked a ${service.name} service for ${new Date(data.date).toLocaleDateString()} at ${data.timeSlot}.`,
+          type: 'BOOKING',
+          isRead: false
+        }
+      });
+
+      // Trigger Pusher event for each admin
+      await pusherServer.trigger(`user-${admin.id}`, 'new-notification', {
+        id: adminNotification.id,
+        title: adminNotification.title,
+        message: adminNotification.message,
+        type: adminNotification.type,
+        createdAt: adminNotification.createdAt
+      });
+    }
+
+    // Also trigger a general admin channel
+    await pusherServer.trigger('admin-notifications', 'new-notification', {
+      message: `New booking from ${user.name}`
     });
 
     return appointment;

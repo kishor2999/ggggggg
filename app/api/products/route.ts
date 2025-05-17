@@ -22,11 +22,15 @@ export async function POST(request: Request) {
     const body = await request.json();
     const { name, description, price, stock, categoryId, images } = body;
 
+    // Ensure price is stored exactly as provided without rounding
+    // Convert to string with toFixed(2) to ensure consistent decimal places
+    const exactPrice = typeof price === 'number' ? price.toString() : String(price);
+
     const product = await prisma.product.create({
       data: {
         name,
         description,
-        price,
+        price: exactPrice, // Pass price as string to maintain precision
         stock,
         categoryId,
         images,
@@ -35,6 +39,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json(product);
   } catch (error) {
+    console.error("Error creating product:", error);
     return NextResponse.json(
       { error: "Failed to create product" },
       { status: 500 }

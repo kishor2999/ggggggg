@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import prisma from '@/lib/db';
+import { pusherServer } from '@/lib/pusher';
 
 export async function POST(request: Request) {
   try {
@@ -109,6 +110,53 @@ export async function POST(request: Request) {
         }
       }
     });
+
+    // Create notification for the user
+    const userNotification = await prisma.notification.create({
+      data: {
+        userId: user.id,
+        title: 'Order Created',
+        message: `Your order #${order.id.substring(0, 8)} has been created successfully. Waiting for payment.`,
+        type: 'ORDER',
+        isRead: false
+      }
+    });
+
+    // Send real-time notification to the user
+    await pusherServer.trigger(`user-${user.id}`, 'new-notification', {
+      id: userNotification.id,
+      title: userNotification.title,
+      message: userNotification.message,
+      type: userNotification.type,
+      createdAt: userNotification.createdAt
+    });
+
+    // Get admin users to notify them
+    const adminUsers = await prisma.user.findMany({
+      where: { role: 'ADMIN' }
+    });
+
+    // Create notification for all admins
+    for (const admin of adminUsers) {
+      const adminNotification = await prisma.notification.create({
+        data: {
+          userId: admin.id,
+          title: 'New Order Created',
+          message: `${user.name} has created an order of Rs${totalAmount}. Waiting for payment.`,
+          type: 'ORDER',
+          isRead: false
+        }
+      });
+
+      // Send real-time notification to each admin
+      await pusherServer.trigger(`user-${admin.id}`, 'new-notification', {
+        id: adminNotification.id,
+        title: adminNotification.title,
+        message: adminNotification.message,
+        type: adminNotification.type,
+        createdAt: adminNotification.createdAt
+      });
+    }
 
     // We're NOT updating product stock here anymore
     // Stock will be updated only after successful payment confirmation

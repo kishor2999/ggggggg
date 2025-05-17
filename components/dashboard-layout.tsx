@@ -2,7 +2,7 @@
 
 import type React from "react";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
@@ -12,9 +12,11 @@ import {
   SignedIn,
   SignedOut,
   UserButton,
+  useUser,
 } from "@clerk/nextjs";
 import {
   BarChart3,
+  Bell,
   Calendar,
   Car,
   CreditCard,
@@ -46,6 +48,19 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
 import { CartIcon } from "@/components/cart-icon";
+import { pusherClient } from "@/lib/pusher";
+import { toast } from "sonner";
+import { format } from "date-fns";
+import { NotificationMenu } from "@/components/notification-menu";
+
+interface Notification {
+  id: string;
+  title: string;
+  message: string;
+  type: string;
+  isRead: boolean;
+  createdAt: Date;
+}
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
@@ -56,12 +71,122 @@ export function DashboardLayout({ children, userRole }: DashboardLayoutProps) {
   const pathname = usePathname();
   const router = useRouter();
   const [isMounted, setIsMounted] = useState(false);
-  const [notifications, setNotifications] = useState(3);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [notificationCount, setNotificationCount] = useState(0);
+  const { user } = useUser();
 
-  // Prevent hydration errors
+  // Fetch notifications when component mounts
   useEffect(() => {
     setIsMounted(true);
-  }, []);
+
+    // Only attempt to fetch notifications if we have a user
+    if (user?.id) {
+      fetchNotifications();
+    }
+  }, [user?.id]);
+
+  // Subscribe to Pusher channels for real-time notifications
+  useEffect(() => {
+    if (!user?.id) return;
+
+    // Subscribe to user-specific channel
+    const channel = pusherClient.subscribe(`user-${user.id}`);
+
+    // Also subscribe to role-based channel
+    const roleChannel = pusherClient.subscribe(`${userRole}-notifications`);
+
+    // Handle new notifications
+    const handleNewNotification = (notification: Notification) => {
+      setNotifications(prev => [notification, ...prev]);
+      setNotificationCount(prev => prev + 1);
+
+      // Show toast notification
+      toast.info(notification.title, {
+        description: notification.message,
+        duration: 5000,
+      });
+    };
+
+    // Listen for new notification events on both channels
+    channel.bind('new-notification', handleNewNotification);
+    roleChannel.bind('new-notification', handleNewNotification);
+
+    // Cleanup on unmount
+    return () => {
+      pusherClient.unsubscribe(`user-${user.id}`);
+      pusherClient.unsubscribe(`${userRole}-notifications`);
+    };
+  }, [user?.id, userRole]);
+
+  // Fetch notifications from API
+  const fetchNotifications = async () => {
+    try {
+      const response = await fetch(`/api/notifications?userId=${user?.id}`);
+      if (response.ok) {
+        const data = await response.json();
+        setNotifications(data);
+        setNotificationCount(data.filter((n: Notification) => !n.isRead).length);
+      }
+    } catch (error) {
+      console.error("Failed to fetch notifications:", error);
+    }
+  };
+
+  // Mark a notification as read
+  const markAsRead = async (notificationId: string) => {
+    try {
+      // Update locally first for better UX
+      setNotifications(prev =>
+        prev.map(notification =>
+          notification.id === notificationId
+            ? { ...notification, isRead: true }
+            : notification
+        )
+      );
+      setNotificationCount(prev => Math.max(0, prev - 1));
+
+      // Then update on the server
+      const response = await fetch(`/api/notifications/${notificationId}/read`, {
+        method: 'PUT'
+      });
+
+      if (!response.ok) {
+        console.error("Failed to mark notification as read");
+        // Revert the local change if server update fails
+        fetchNotifications();
+      }
+    } catch (error) {
+      console.error("Error marking notification as read:", error);
+      fetchNotifications();
+    }
+  };
+
+  // Mark all notifications as read
+  const markAllAsRead = async () => {
+    if (!user?.id || notifications.length === 0) return;
+
+    try {
+      // Update locally first for better UX
+      setNotifications(prev =>
+        prev.map(notification => ({ ...notification, isRead: true }))
+      );
+      setNotificationCount(0);
+
+      // Then update on the server
+      const response = await fetch(`/api/notifications/mark-all-read?userId=${user.id}`, {
+        method: 'PUT'
+      });
+
+      if (!response.ok) {
+        console.error("Failed to mark all notifications as read");
+        // Revert the local change if server update fails
+        fetchNotifications();
+      }
+    } catch (error) {
+      console.error("Error marking all notifications as read:", error);
+      fetchNotifications();
+    }
+  };
 
   if (!isMounted) {
     return null;
@@ -137,7 +262,7 @@ export function DashboardLayout({ children, userRole }: DashboardLayoutProps) {
             <div className="flex h-16 items-center border-b px-6">
               <Link href="/" className="flex items-center gap-2 font-semibold">
                 <Car className="h-6 w-6 text-primary" />
-                <span>CleanDrive</span>
+                <span>CleanDrives</span>
               </Link>
               <div className="ml-auto">
                 <X className="h-5 w-5 text-muted-foreground" />
@@ -173,7 +298,7 @@ export function DashboardLayout({ children, userRole }: DashboardLayoutProps) {
         </Sheet>
         <Link href="/" className="flex items-center gap-2 font-semibold">
           <Car className="h-6 w-6 text-primary" />
-          <span className="hidden xl:inline-block">CleanDrive</span>
+          <span className="hidden xl:inline-block">CleanDrives</span>
         </Link>
         <div className="ml-auto flex items-center gap-4">
           {userRole === "user" && <CartIcon />}
@@ -220,69 +345,12 @@ export function DashboardLayout({ children, userRole }: DashboardLayoutProps) {
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-          <Button variant="outline" size="icon" className="relative">
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="24"
-              height="24"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              className="h-5 w-5"
-            >
-              <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" />
-              <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
-            </svg>
-            {notifications > 0 && (
-              <Badge
-                variant="destructive"
-                className="absolute -right-1 -top-1 h-5 w-5 rounded-full p-0 text-xs"
-              >
-                {notifications}
-              </Badge>
-            )}
-            <span className="sr-only">Toggle notifications</span>
-          </Button>
-          {/* <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              {/* <Button variant="ghost" size="icon" className="rounded-full">
-                <Avatar className="h-8 w-8">
-                  <AvatarImage src="/placeholder-user.jpg" alt={userName} />
-                  <AvatarFallback>{userName.charAt(0)}</AvatarFallback>
-                </Avatar>
-              </Button> */}
-          {/* </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuLabel>
-                <div className="flex flex-col space-y-1">
-                  <p className="text-sm font-medium leading-none">{userName}</p>
-                  <p className="text-xs leading-none text-muted-foreground">
-                    {roleLabel}
-                  </p>
-                </div>
-              </DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem>
-                <User className="mr-2 h-4 w-4" />
-                <span>Profile</span>
-              </DropdownMenuItem>
-              <DropdownMenuItem>
-                <Settings className="mr-2 h-4 w-4" />
-                <span>Settings</span>
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem asChild>
-                <Link href="/">
-                  <LogOut className="mr-2 h-4 w-4" />
-                  <span>Back to Selection</span>
-                </Link>
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu> */}
-
+          <NotificationMenu
+            notifications={notifications}
+            notificationCount={notificationCount}
+            onMarkAsRead={markAsRead}
+            onMarkAllAsRead={markAllAsRead}
+          />
           <SignedIn>
             <UserButton />
           </SignedIn>

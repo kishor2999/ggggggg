@@ -137,6 +137,16 @@ export default function AdminBookings() {
         const bookingsData = await getBookings();
         console.log("Raw bookings data:", JSON.stringify(bookingsData, null, 2));
 
+        // Add diagnostic for payment statuses
+        if (bookingsData && Array.isArray(bookingsData)) {
+          console.log("Payment statuses in data:", bookingsData.map(b => ({
+            id: b.id,
+            status: b.status,
+            paymentStatus: b.paymentStatus,
+            paymentType: b.paymentType
+          })));
+        }
+
         // Store debug info
         setDebugInfo({
           bookingsCount: bookingsData?.length || 0,
@@ -163,7 +173,21 @@ export default function AdminBookings() {
         if (bookingsData && Array.isArray(bookingsData)) {
           // Transform the appointments data to match the Booking interface
           const transformedBookings = bookingsData.map((booking) => {
-            console.log("Processing booking:", booking);
+            // Log each booking's payment details
+            console.log(`Booking ${booking.id} payment details:`, {
+              status: booking.paymentStatus,
+              type: booking.paymentType
+            });
+
+            // Determine the correct payment status based on both status and type
+            let paymentStatus = booking.paymentStatus || "PENDING";
+
+            // If payment type is HALF and status is PAID/SUCCESS, use HALF_PAID
+            if ((paymentStatus === "PAID" || paymentStatus === "SUCCESS") &&
+              booking.paymentType === "HALF") {
+              paymentStatus = "HALF_PAID";
+            }
+
             return {
               id: booking.id,
               service: {
@@ -185,7 +209,8 @@ export default function AdminBookings() {
               timeSlot: booking.timeSlot,
               notes: booking.notes,
               status: booking.status,
-              paymentStatus: booking.paymentStatus,
+              // Use the determined payment status
+              paymentStatus: paymentStatus,
               paymentMethod: booking.paymentMethod,
               paymentType: booking.paymentType || "FULL",
               updatedAt: booking.updatedAt,
@@ -262,35 +287,60 @@ export default function AdminBookings() {
   };
 
   const handleEditBooking = (booking: any) => {
-    // Create a new object with all the necessary data
     const bookingData = {
-      ...booking,
-      service: {
-        id: booking.service?.id || "",
-        name: booking.service?.name || "",
-        description: booking.service?.description || "",
-        price: booking.service?.price || 0,
-        duration: booking.service?.duration || 0,
-      },
-      vehicle: {
-        id: booking.vehicle?.id || "",
-        type: booking.vehicle?.type || "",
-        model: booking.vehicle?.model || "",
-        plate: booking.vehicle?.plate || "",
-      },
-      timeSlot: booking.timeSlot || "",
-      notes: booking.notes || "",
-      date: booking.date || new Date(),
+      id: booking.id,
+      service: booking.service,
+      vehicle: booking.vehicle,
+      user: booking.user,
+      date: new Date(booking.date),
+      timeSlot: booking.timeSlot,
+      notes: booking.notes,
       price: booking.price ? Number(booking.price) : 0,
       status: booking.status || "PENDING",
-      paymentStatus: booking.paymentStatus || "PENDING",
+      // Use the original payment status directly - don't normalize
+      paymentStatus: booking.paymentStatus,
       paymentMethod: booking.paymentMethod || "",
+      paymentType: booking.paymentType || "FULL",
+      updatedAt: booking.updatedAt || new Date(),
       employee: booking.employee || null,
     };
 
-    console.log("Editing booking:", bookingData); // Add this for debugging
+    // Add detailed debugging for payment status
+    console.log("Editing booking:", bookingData);
+    console.log("Original payment status:", booking.paymentStatus);
+
     setBookingToEdit(bookingData);
     setIsEditDialogOpen(true);
+  };
+
+  // Helper function to normalize payment status
+  const normalizePaymentStatus = (status: string | undefined): string => {
+    if (!status) return "PENDING";
+
+    const normalized = status.toUpperCase();
+
+    // Use consistent values
+    if (normalized === "SUCCESS") {
+      return "PAID"; // Convert legacy SUCCESS to PAID
+    }
+
+    if (normalized === "PAID") {
+      return "PAID";
+    }
+
+    if (normalized === "HALF_PAID" || normalized.includes("HALF")) {
+      return "HALF_PAID";
+    }
+
+    if (normalized === "REFUNDED" || normalized.includes("REFUND")) {
+      return "REFUNDED";
+    }
+
+    if (normalized === "PENDING") {
+      return "PENDING";
+    }
+
+    return "PENDING"; // Default to PENDING
   };
 
   const getStatusBadge = (status: string) => {
@@ -313,22 +363,34 @@ export default function AdminBookings() {
     const normalizedStatus = status?.toUpperCase() || '';
     const normalizedPaymentType = paymentType?.toUpperCase() || '';
 
-    if (normalizedStatus === "PAID" || normalizedStatus === "SUCCESS") {
-      if (normalizedPaymentType === "HALF") {
-        return <Badge className="bg-blue-500">Half Paid</Badge>;
-      }
-      return <Badge className="bg-green-500">Fully Paid</Badge>;
+    console.log("Badge for payment status:", normalizedStatus, "with type:", normalizedPaymentType);
+
+    // Check for explicit HALF_PAID status first
+    if (normalizedStatus === "HALF_PAID") {
+      return <Badge className="bg-blue-500">Half Paid</Badge>;
     }
 
+    // For backward compatibility - check for PAID + HALF
+    if ((normalizedStatus === "SUCCESS" || normalizedStatus === "PAID") && normalizedPaymentType === "HALF") {
+      return <Badge className="bg-blue-500">Half Paid</Badge>;
+    }
+
+    // Handle other standard statuses
     switch (normalizedStatus) {
-      case "HALF_PAID":
-        return <Badge className="bg-blue-500">Half Paid</Badge>;
-      case "PENDING":
-        return <Badge variant="outline">Pending</Badge>;
+      case "PAID":
+      case "SUCCESS":
+        return <Badge className="bg-green-500">Fully Paid</Badge>;
+
       case "REFUNDED":
         return <Badge variant="secondary">Refunded</Badge>;
+
+      case "PENDING":
+        return <Badge variant="outline">Pending</Badge>;
+
       default:
-        return <Badge variant="outline">{status}</Badge>;
+        // If we have an unknown status, log it and show it as is
+        console.warn("Unknown payment status:", status);
+        return <Badge variant="outline">{status || "Unknown"}</Badge>;
     }
   };
 
@@ -344,38 +406,124 @@ export default function AdminBookings() {
       if (!bookingToEdit) return;
       setIsSaving(true);
 
-      console.log("Saving changes with payment type:", bookingToEdit.paymentType);
+      // Log payment status before sending
+      console.log("Before saving - Payment Status:", bookingToEdit.paymentStatus);
 
-      const updatedBooking = await updateAppointment(bookingToEdit.id, {
-        serviceId: bookingToEdit.service?.id,
+      // Prepare the data for update
+      const updateData: any = {
         vehicleId: bookingToEdit.vehicle?.id,
-        date: new Date(bookingToEdit.date),
         timeSlot: bookingToEdit.timeSlot,
         notes: bookingToEdit.notes,
         status: bookingToEdit.status,
         employeeId: bookingToEdit.employee?.id || null,
-        paymentStatus: bookingToEdit.paymentStatus,
-        paymentType: bookingToEdit.paymentType,
-      });
+      };
 
-      // Update the bookings list with the new data
-      setBookings((prevBookings) =>
-        prevBookings.map((booking) => {
-          if (booking.id === updatedBooking.id) {
-            return {
-              ...booking,
-              ...updatedBooking,
-              employee: updatedBooking.employee
-                ? {
-                  id: updatedBooking.employee.id,
-                  name: employees.find((e) => e.id === updatedBooking.employee?.id)?.user?.name || "Unknown Employee",
-                }
-                : null,
-            };
+      // Handle payment status logic
+      if (bookingToEdit.paymentStatus === "HALF_PAID") {
+        // For half paid, we save PAID status with HALF type
+        updateData.paymentStatus = "PAID";
+        updateData.paymentType = "HALF";
+      } else {
+        // For other statuses, use as is
+        updateData.paymentStatus = bookingToEdit.paymentStatus;
+
+        // If we're setting to PAID and type is HALF, keep the HALF type
+        if (bookingToEdit.paymentStatus === "PAID" && bookingToEdit.paymentType === "HALF") {
+          updateData.paymentType = "HALF";
+        }
+      }
+
+      // Make the update call
+      const updatedBooking = await updateAppointment(bookingToEdit.id, updateData);
+
+      console.log("After saving - Updated booking data:", updatedBooking);
+
+      // Refresh the bookings data to ensure we have the latest data
+      const refreshedBookings = await getBookings();
+      if (refreshedBookings && Array.isArray(refreshedBookings)) {
+        const transformedBookings = refreshedBookings.map((booking) => {
+          // Log the transformation of each booking to debug
+          console.log(`Transforming booking ${booking.id}:`, {
+            originalStatus: booking.paymentStatus,
+            originalType: booking.paymentType
+          });
+
+          // Determine the correct payment status based on both status and type
+          let paymentStatus = booking.paymentStatus || "PENDING";
+
+          // If payment type is HALF and status is PAID/SUCCESS, use HALF_PAID
+          if ((paymentStatus === "PAID" || paymentStatus === "SUCCESS") &&
+            booking.paymentType === "HALF") {
+            paymentStatus = "HALF_PAID";
           }
-          return booking;
-        })
-      );
+
+          return {
+            id: booking.id,
+            service: {
+              id: booking.service?.id || "",
+              name: booking.service?.name || "Unknown Service",
+              price: booking.service?.price || 0,
+            },
+            vehicle: {
+              id: booking.vehicle?.id || "",
+              model: booking.vehicle?.model || "Unknown Vehicle",
+            },
+            user: {
+              id: booking.user?.id || "",
+              name: booking.user?.name || "Unknown User",
+              email: booking.user?.email || "",
+              phone: booking.phoneNumber || booking.user?.phoneNumber || "",
+            },
+            date: booking.date,
+            timeSlot: booking.timeSlot,
+            notes: booking.notes,
+            status: booking.status,
+            // Use the determined payment status
+            paymentStatus: paymentStatus,
+            paymentMethod: booking.paymentMethod,
+            paymentType: booking.paymentType || "FULL",
+            updatedAt: booking.updatedAt,
+            employee: booking.employee ? {
+              id: booking.employee?.id || "",
+              name: booking.employee?.user?.name || "Unknown Employee"
+            } : null,
+            price: Number(booking.price) || 0,
+          };
+        });
+
+        setBookings(transformedBookings);
+      } else {
+        // Fallback to updating just the specific booking
+        setBookings((prevBookings) =>
+          prevBookings.map((booking) => {
+            if (booking.id === updatedBooking.id) {
+              // Determine correct payment status for the updated booking
+              let paymentStatus = updatedBooking.paymentStatus || "PENDING";
+
+              // If payment type is HALF and status is PAID/SUCCESS, use HALF_PAID
+              if ((paymentStatus === "PAID" || paymentStatus === "SUCCESS") &&
+                updatedBooking.paymentType === "HALF") {
+                paymentStatus = "HALF_PAID";
+              }
+
+              return {
+                ...booking,
+                ...updatedBooking,
+                // Use the determined payment status
+                paymentStatus: paymentStatus,
+                timeSlot: updatedBooking.timeSlot,
+                employee: updatedBooking.employee
+                  ? {
+                    id: updatedBooking.employee.id,
+                    name: employees.find((e) => e.id === updatedBooking.employee?.id)?.user?.name || "Unknown Employee",
+                  }
+                  : null,
+              };
+            }
+            return booking;
+          })
+        );
+      }
 
       toast.success("Booking updated successfully");
       setIsEditDialogOpen(false);
@@ -390,15 +538,9 @@ export default function AdminBookings() {
 
   // Update the state setters with proper typing
   const handleServiceChange = (value: string) => {
-    const selectedService = services.find((s) => s.id === value);
-    setBookingToEdit((prev: Booking | null) =>
-      prev
-        ? {
-          ...prev,
-          service: selectedService,
-        }
-        : null
-    );
+    // Service editing is disabled, so this is just for reference
+    console.log("Service editing is disabled");
+    return; // Do nothing since service editing is disabled
   };
 
   // Update other setters similarly
@@ -414,13 +556,13 @@ export default function AdminBookings() {
   };
 
   const handleDateChange = (date: Date | undefined) => {
-    if (!date) return;
-    setBookingToEdit((prev: Booking | null) =>
-      prev ? { ...prev, date } : null
-    );
+    // Date editing is disabled, so this is just for reference
+    console.log("Date editing is disabled");
+    return; // Do nothing since date editing is disabled
   };
 
   const handleTimeChange = (value: string) => {
+    // Allow time editing
     setBookingToEdit((prev: Booking | null) =>
       prev ? { ...prev, timeSlot: value } : null
     );
@@ -633,7 +775,7 @@ export default function AdminBookings() {
                               {format(new Date(booking.date), "MMM d, yyyy")}
                             </div>
                             <div className="text-sm text-muted-foreground">
-                              {format(new Date(booking.date), "h:mm a")}
+                              {booking.timeSlot ? formatTimeSlot(booking.timeSlot) : format(new Date(booking.date), "h:mm a")}
                             </div>
                           </TableCell>
                           <TableCell>
@@ -643,7 +785,14 @@ export default function AdminBookings() {
                             {getStatusBadge(booking.status)}
                           </TableCell>
                           <TableCell>
-                            {getPaymentStatusBadge(booking.paymentStatus, booking.paymentType)}
+                            {/* Debug payment status values */}
+                            {(() => {
+                              console.log(`Payment badge for booking ${booking.id}:`, {
+                                status: booking.paymentStatus,
+                                type: booking.paymentType
+                              });
+                              return getPaymentStatusBadge(booking.paymentStatus, booking.paymentType);
+                            })()}
                           </TableCell>
                           <TableCell className="text-right">
                             <div className="flex justify-end gap-2">
@@ -727,7 +876,7 @@ export default function AdminBookings() {
                           </div>
                           <div className="text-sm">
                             <span className="font-medium">Time:</span>{" "}
-                            {format(new Date(selectedBooking.date), "h:mm a")}
+                            {selectedBooking.timeSlot ? formatTimeSlot(selectedBooking.timeSlot) : format(new Date(selectedBooking.date), "h:mm a")}
                           </div>
                         </div>
                       </div>
@@ -864,6 +1013,7 @@ export default function AdminBookings() {
                             <Select
                               value={bookingToEdit?.service?.id || ""}
                               onValueChange={handleServiceChange}
+                              disabled={true}
                             >
                               <SelectTrigger id="edit-service" className="w-full">
                                 <SelectValue placeholder="Select service">
@@ -899,6 +1049,7 @@ export default function AdminBookings() {
                                   id="edit-date"
                                   variant="outline"
                                   className="w-full justify-start text-left font-normal"
+                                  disabled={true}
                                 >
                                   <CalendarIcon className="mr-2 h-4 w-4" />
                                   {bookingToEdit?.date
@@ -926,6 +1077,7 @@ export default function AdminBookings() {
                             <Select
                               value={bookingToEdit?.timeSlot || ""}
                               onValueChange={handleTimeChange}
+                              disabled={false}
                             >
                               <SelectTrigger id="edit-time" className="w-full">
                                 <SelectValue placeholder="Select time">
@@ -976,7 +1128,7 @@ export default function AdminBookings() {
                         <div className="grid grid-cols-4 items-center gap-4">
                           <Label className="text-right">Price</Label>
                           <div className="col-span-3">
-                            $
+                            Rs.
                             {typeof bookingToEdit?.price === "number"
                               ? bookingToEdit.price.toFixed(2)
                               : "0.00"}
@@ -1012,8 +1164,9 @@ export default function AdminBookings() {
                         <div className="grid gap-2">
                           <Label htmlFor="edit-status">Booking Status</Label>
                           <Select
-                            defaultValue={bookingToEdit.status}
+                            value={bookingToEdit.status}
                             onValueChange={(status) => {
+                              console.log("Selected booking status:", status);
                               setBookingToEdit(prev =>
                                 prev ? { ...prev, status } : null
                               );
@@ -1038,11 +1191,41 @@ export default function AdminBookings() {
                             Payment Status
                           </Label>
                           <Select
-                            defaultValue={bookingToEdit.paymentStatus}
+                            value={bookingToEdit.paymentStatus}
                             onValueChange={(paymentStatus) => {
-                              setBookingToEdit(prev =>
-                                prev ? { ...prev, paymentStatus } : null
-                              );
+                              console.log("Selected payment status:", paymentStatus);
+
+                              // Update the payment status in the edit state
+                              setBookingToEdit(prev => {
+                                if (!prev) return null;
+
+                                // Log the status change
+                                console.log("Updating payment status:", {
+                                  from: prev.paymentStatus,
+                                  to: paymentStatus
+                                });
+
+                                // If changing to Half Paid, ensure paymentType is updated if needed
+                                if (paymentStatus === "HALF_PAID" && prev.paymentType !== "HALF") {
+                                  console.log("Auto-updating payment type to HALF");
+                                  return {
+                                    ...prev,
+                                    paymentStatus,
+                                    paymentType: "HALF"
+                                  };
+                                } else if (paymentStatus === "PAID" && prev.paymentType === "HALF") {
+                                  // Keep the HALF payment type but update status
+                                  return {
+                                    ...prev,
+                                    paymentStatus
+                                  };
+                                }
+
+                                return {
+                                  ...prev,
+                                  paymentStatus
+                                };
+                              });
                             }}
                           >
                             <SelectTrigger
@@ -1052,9 +1235,9 @@ export default function AdminBookings() {
                               <SelectValue placeholder="Select payment status" />
                             </SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="PENDING">Pending</SelectItem>
-                              <SelectItem value="PAID">Paid</SelectItem>
+                              <SelectItem value="PAID">Fully Paid</SelectItem>
                               <SelectItem value="HALF_PAID">Half Paid</SelectItem>
+                              <SelectItem value="PENDING">Pending</SelectItem>
                               <SelectItem value="REFUNDED">Refunded</SelectItem>
                             </SelectContent>
                           </Select>
@@ -1062,15 +1245,18 @@ export default function AdminBookings() {
 
                         <div className="grid gap-2">
                           <Label htmlFor="edit-payment-type">
-                            Payment Type
+                            Payment Type (Read Only)
                           </Label>
                           <Select
-                            defaultValue={bookingToEdit.paymentType}
+                            value={bookingToEdit.paymentType}
                             onValueChange={(paymentType) => {
-                              setBookingToEdit(prev =>
-                                prev ? { ...prev, paymentType } : null
-                              );
+                              console.log("Payment type should not be changed");
+                              // Commented out to prevent changes
+                              // setBookingToEdit(prev =>
+                              //   prev ? { ...prev, paymentType } : null
+                              // );
                             }}
+                            disabled={true}
                           >
                             <SelectTrigger
                               id="edit-payment-type"

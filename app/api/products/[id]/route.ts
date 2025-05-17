@@ -39,6 +39,10 @@ export async function PUT(
     const body = await request.json();
     const { name, description, price, stock, categoryId, images } = body;
 
+    // Ensure price is stored exactly as provided without rounding
+    // Convert to string with toFixed(2) to ensure consistent decimal places
+    const exactPrice = typeof price === 'number' ? price.toString() : String(price);
+
     const product = await prisma.product.update({
       where: {
         id: params.id,
@@ -46,7 +50,7 @@ export async function PUT(
       data: {
         name,
         description,
-        price,
+        price: exactPrice, // Pass price as string to maintain precision
         stock,
         categoryId,
         images,
@@ -55,6 +59,7 @@ export async function PUT(
 
     return NextResponse.json(product);
   } catch (error) {
+    console.error("Error updating product:", error);
     return NextResponse.json(
       { error: "Failed to update product" },
       { status: 500 }

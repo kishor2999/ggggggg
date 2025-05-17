@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/db";
 import { verifySignature, checkTransactionStatus, ESEWA_CONFIG } from "@/lib/esewa-utils";
+import { pusherServer } from "@/lib/pusher";
 
 export async function GET(request: Request) {
   try {
@@ -67,22 +68,69 @@ export async function GET(request: Request) {
       await prisma.order.update({
         where: { id: order.id },
         data: {
-          paymentStatus: "SUCCESS",
+          paymentStatus: "PAID",
           status: "PROCESSING"
         }
       });
       
       // Create payment record
-      await prisma.payment.create({
+      const payment = await prisma.payment.create({
         data: {
           userId: order.userId,
           orderId: order.id,
           amount: parseFloat(order.totalAmount.toString()),
-          status: "SUCCESS",
+          status: "PAID",
           method: "ESEWA",
           transactionId: responseData.transaction_code || transactionUuid
         }
       });
+      
+      // Create notification for the user
+      const userNotification = await prisma.notification.create({
+        data: {
+          userId: order.userId,
+          title: 'Payment Successful',
+          message: `Your payment of Rs${order.totalAmount} for the order has been received.`,
+          type: 'PAYMENT',
+          isRead: false
+        }
+      });
+
+      // Send real-time notification to the user
+      await pusherServer.trigger(`user-${order.userId}`, 'new-notification', {
+        id: userNotification.id,
+        title: userNotification.title,
+        message: userNotification.message,
+        type: userNotification.type,
+        createdAt: userNotification.createdAt
+      });
+      
+      // Get admin users to notify them
+      const adminUsers = await prisma.user.findMany({
+        where: { role: 'ADMIN' }
+      });
+
+      // Create notification for all admins
+      for (const admin of adminUsers) {
+        const adminNotification = await prisma.notification.create({
+          data: {
+            userId: admin.id,
+            title: 'New Order Payment',
+            message: `Order #${order.id.substring(0, 8)} payment of Rs${order.totalAmount} has been received.`,
+            type: 'PAYMENT',
+            isRead: false
+          }
+        });
+
+        // Send real-time notification to each admin
+        await pusherServer.trigger(`user-${admin.id}`, 'new-notification', {
+          id: adminNotification.id,
+          title: adminNotification.title,
+          message: adminNotification.message,
+          type: adminNotification.type,
+          createdAt: adminNotification.createdAt
+        });
+      }
       
       console.log("E-commerce payment successful - redirecting to success page");
       return NextResponse.redirect(`${url.origin}/dashboard/user/orders/success?order_id=${order.id}&clear_cart=true`);
@@ -99,7 +147,11 @@ export async function GET(request: Request) {
       orderBy: {
         createdAt: 'desc'
       },
-      take: 1
+      take: 1,
+      include: {
+        service: true,
+        user: true
+      }
     });
     
     // If appointment found, process car wash payment
@@ -110,24 +162,71 @@ export async function GET(request: Request) {
       await prisma.appointment.update({
         where: { id: appointment.id },
         data: {
-          paymentStatus: "SUCCESS"
+          paymentStatus: "PAID"
         }
       });
       
       // Create payment record
-      await prisma.payment.create({
+      const payment = await prisma.payment.create({
         data: {
           userId: appointment.userId,
           appointmentId: appointment.id,
           amount: parseFloat(appointment.price.toString()),
-          status: "SUCCESS",
+          status: "PAID",
           method: "ESEWA",
           transactionId: responseData.transaction_code || transactionUuid
         }
       });
       
+      // Create notification for the user
+      const userNotification = await prisma.notification.create({
+        data: {
+          userId: appointment.userId,
+          title: 'Payment Successful',
+          message: `Your payment of Rs${appointment.price} for the ${appointment.service.name} booking has been received.`,
+          type: 'PAYMENT',
+          isRead: false
+        }
+      });
+
+      // Send real-time notification to the user
+      await pusherServer.trigger(`user-${appointment.userId}`, 'new-notification', {
+        id: userNotification.id,
+        title: userNotification.title,
+        message: userNotification.message,
+        type: userNotification.type,
+        createdAt: userNotification.createdAt
+      });
+      
+      // Get admin users to notify them
+      const adminUsers = await prisma.user.findMany({
+        where: { role: 'ADMIN' }
+      });
+
+      // Create notification for all admins
+      for (const admin of adminUsers) {
+        const adminNotification = await prisma.notification.create({
+          data: {
+            userId: admin.id,
+            title: 'New Booking Payment',
+            message: `${appointment.user.name} has paid Rs${appointment.price} for ${appointment.service.name} service.`,
+            type: 'PAYMENT',
+            isRead: false
+          }
+        });
+
+        // Send real-time notification to each admin
+        await pusherServer.trigger(`user-${admin.id}`, 'new-notification', {
+          id: adminNotification.id,
+          title: adminNotification.title,
+          message: adminNotification.message,
+          type: adminNotification.type,
+          createdAt: adminNotification.createdAt
+        });
+      }
+      
       console.log("Car wash payment successful - redirecting to bookings");
-      return NextResponse.redirect(`${url.origin}/dashboard/user/bookings`);
+      return NextResponse.redirect(`${url.origin}/dashboard/user/bookings?payment_success=true`);
     }
     
     // If no matching transaction found

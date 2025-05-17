@@ -36,6 +36,8 @@ import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, For
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
+import { SharedNotificationTest } from "@/components/shared-notification-test";
+import { NotificationDebug } from "@/components/notification-debug";
 
 interface RecentService {
   id: string;
@@ -449,6 +451,9 @@ export default function UserDashboard() {
           </div>
         </div>
       </div>
+
+      <SharedNotificationTest dashboardType="user" />
+      <NotificationDebug />
     </DashboardLayout>
   );
 }

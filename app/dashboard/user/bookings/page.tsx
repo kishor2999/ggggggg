@@ -137,6 +137,21 @@ export default function BookingHistory() {
     };
 
     fetchBookings();
+
+    // Check for payment_success URL parameter
+    const params = new URLSearchParams(window.location.search);
+    const paymentSuccess = params.get('payment_success');
+
+    if (paymentSuccess === 'true') {
+      toast.success("Payment completed successfully!", {
+        description: "Your booking has been confirmed.",
+        duration: 5000,
+      });
+
+      // Clear the URL parameter after showing the notification
+      const newUrl = window.location.pathname;
+      window.history.replaceState({}, document.title, newUrl);
+    }
   }, []);
 
   const upcomingBookings = bookings

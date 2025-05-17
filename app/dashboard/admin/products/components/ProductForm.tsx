@@ -48,13 +48,28 @@ export default function ProductForm({
   const [formData, setFormData] = useState({
     name: initialData?.name || "",
     description: initialData?.description || "",
-    price: initialData?.price || 0,
+    price: initialData?.price ?? 0,
     stock: initialData?.stock || 0,
     categoryId: initialData?.categoryId || "",
     images: initialData?.images || [],
   });
 
+  // Use a separate state for price input
+  const [priceInput, setPriceInput] = useState(initialData?.price ? initialData.price.toString() : "0");
+  const [isPriceEmpty, setIsPriceEmpty] = useState(false);
+
   const { startUpload, isUploading } = useUploadThing("imageUploader");
+
+  // Ensure price state is properly synchronized when component initializes
+  useEffect(() => {
+    if (initialData?.price) {
+      setPriceInput(initialData.price.toString());
+      setFormData(prevData => ({
+        ...prevData,
+        price: initialData.price
+      }));
+    }
+  }, [initialData]);
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files || e.target.files.length === 0) return;
@@ -84,12 +99,18 @@ export default function ProductForm({
         : "/api/products";
       const method = initialData?.id ? "PUT" : "POST";
 
+      // Ensure price is properly converted to a number
+      const formDataToSend = {
+        ...formData,
+        price: Number(formData.price)
+      };
+
       const response = await fetch(endpoint, {
         method,
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(formDataToSend),
       });
 
       if (!response.ok) {
@@ -137,12 +158,37 @@ export default function ProductForm({
         <Label htmlFor="price">Price</Label>
         <Input
           id="price"
-          type="number"
-          step="0.01"
-          value={formData.price}
-          onChange={(e) =>
-            setFormData({ ...formData, price: parseFloat(e.target.value) })
-          }
+          type="text"
+          inputMode="decimal"
+          value={priceInput}
+          onFocus={() => {
+            if (priceInput === "0") {
+              setPriceInput("");
+              setIsPriceEmpty(true);
+            }
+          }}
+          onBlur={() => {
+            if (priceInput === "") {
+              setPriceInput("0");
+              setFormData({
+                ...formData,
+                price: 0
+              });
+            }
+            setIsPriceEmpty(false);
+          }}
+          onChange={(e) => {
+            const value = e.target.value;
+            // Only set numeric values or empty string
+            if (value === '' || /^\d*\.?\d*$/.test(value)) {
+              setPriceInput(value);
+              setIsPriceEmpty(value === '');
+              setFormData({
+                ...formData,
+                price: value === '' ? 0 : Number(value)
+              });
+            }
+          }}
           required
         />
       </div>
