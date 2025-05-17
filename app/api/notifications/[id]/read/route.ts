@@ -17,7 +17,7 @@ export async function PUT(
       );
     }
     
-    console.log(`Marking notification ${id} as read`);
+    (`Marking notification ${id} as read`);
     
     // Update the notification in the database
     const notification = await prisma.notification.update({
@@ -28,20 +28,20 @@ export async function PUT(
       }
     });
     
-    console.log(`Successfully updated notification in database:`, notification);
+    
     
     // Determine which user ID to use for Pusher (prefer clerk ID if available)
     let userId = notification.userId;
     let clerkId = notification.user?.clerkId;
     
-    console.log(`Internal user ID: ${userId}, Clerk ID: ${clerkId || 'not found'}`);
+    (`Internal user ID: ${userId}, Clerk ID: ${clerkId || 'not found'}`);
     
     // Trigger a Pusher event to notify other components about the status change
     if (userId) {
       // If we have both IDs, use clerk ID for Pusher but send both
       const pusherUserId = clerkId || userId;
       
-      console.log(`Sending Pusher event to ${getUserChannel(pusherUserId)} and user-db-${pusherUserId}`);
+      (`Sending Pusher event to ${getUserChannel(pusherUserId)} and user-db-${pusherUserId}`);
       
       // Define the event payload
       const eventPayload = {
@@ -67,7 +67,7 @@ export async function PUT(
           eventPayload
         );
         
-        console.log('Pusher events sent successfully');
+        ('Pusher events sent successfully');
       } catch (pusherError) {
         console.error('Error sending Pusher events:', pusherError);
         // Continue with response even if Pusher fails

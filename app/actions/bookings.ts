@@ -156,7 +156,7 @@ export async function getTimeSlotAvailability(date: Date) {
       }
     });
 
-    console.log(`Time slot availability for ${bookingDate.toDateString()}:`, timeSlotsCount);
+ 
     
     return timeSlotsCount;
   } catch (error) {

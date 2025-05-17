@@ -1,11 +1,11 @@
 "use client";
 
-import { useState, useEffect } from "react";
 import { DashboardLayout } from "@/components/dashboard-layout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { toast } from "sonner";
 import { useUser } from "@clerk/nextjs";
+import { useState } from "react";
+import { toast } from "sonner";
 
 export default function TestNotifications() {
   const { user } = useUser();

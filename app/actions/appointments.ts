@@ -57,7 +57,7 @@ async function isTimeSlotAtCapacity(date: Date, timeSlot: string) {
     }
   });
 
-  console.log(`Found ${existingAppointments} existing appointments for ${bookingDate.toDateString()} at ${normalizedTimeSlot} (original: ${timeSlot})`);
+  (`Found ${existingAppointments} existing appointments for ${bookingDate.toDateString()} at ${normalizedTimeSlot} (original: ${timeSlot})`);
   
   // Return true if we already have 2 or more appointments for this time slot
   return existingAppointments >= 2;
@@ -95,7 +95,7 @@ export async function createAppointment(data: {
 
     // Normalize the time slot format for consistent storage
     const normalizedTimeSlot = normalizeTimeSlot(data.timeSlot);
-    console.log(`Time slot normalized from ${data.timeSlot} to ${normalizedTimeSlot}`);
+    (`Time slot normalized from ${data.timeSlot} to ${normalizedTimeSlot}`);
 
     // CHECK CAPACITY: Check if this time slot is already at capacity (2 appointments)
     const isAtCapacity = await isTimeSlotAtCapacity(data.date, normalizedTimeSlot);
@@ -190,7 +190,7 @@ export async function createAppointment(data: {
     });
 
     // Emit event with updated availability
-    console.log(`Sending availability update to channel: ${dateChannel}`);
+    (`Sending availability update to channel: ${dateChannel}`);
     await pusherServer.trigger(
       dateChannel,
       EVENT_TYPES.TIMESLOT_AVAILABILITY_UPDATED,
@@ -213,7 +213,7 @@ export async function createAppointment(data: {
     });
 
     // Trigger Pusher event for the user using correct channel format
-    console.log(`Sending booking notification to user channel: ${getUserChannel(user.id)}`);
+    (`Sending booking notification to user channel: ${getUserChannel(user.id)}`);
     await pusherServer.trigger(
       getUserChannel(user.id), 
       EVENT_TYPES.NEW_NOTIFICATION, 
@@ -254,16 +254,16 @@ export async function createAppointment(data: {
       }
     });
 
-    console.log(`Found ${adminUsers.length} admin users to notify about new booking`);
+    (`Found ${adminUsers.length} admin users to notify about new booking`);
     
     if (adminUsers.length === 0) {
-      console.log("WARNING: No admin users found in the database to notify!");
-      console.log("Creating a debug notification for troubleshooting");
+      ("WARNING: No admin users found in the database to notify!");
+      ("Creating a debug notification for troubleshooting");
       
       // Try to find admin users with a more relaxed query
       const allUsers = await prisma.user.findMany();
-      console.log(`Total users in the system: ${allUsers.length}`);
-      console.log(`User roles in the system: ${allUsers.map(u => u.role).join(', ')}`);
+      (`Total users in the system: ${allUsers.length}`);
+      (`User roles in the system: ${allUsers.map(u => u.role).join(', ')}`);
       
       // Look for admins with case-insensitive search
       const possibleAdmins = allUsers.filter(u => 
@@ -272,14 +272,14 @@ export async function createAppointment(data: {
       );
       
       if (possibleAdmins.length > 0) {
-        console.log(`Found ${possibleAdmins.length} possible admin users with non-exact role match`);
-        console.log(`Possible admin roles: ${possibleAdmins.map(u => u.role).join(', ')}`);
+        (`Found ${possibleAdmins.length} possible admin users with non-exact role match`);
+        (`Possible admin roles: ${possibleAdmins.map(u => u.role).join(', ')}`);
       }
     }
 
     // Create notification for all admins
     for (const admin of adminUsers) {
-      console.log(`Creating notification for admin: ${admin.id}, name: ${admin.name}, role: ${admin.role}`);
+      (`Creating notification for admin: ${admin.id}, name: ${admin.name}, role: ${admin.role}`);
       
       try {
         const adminNotification = await prisma.notification.create({
@@ -292,11 +292,11 @@ export async function createAppointment(data: {
           }
         });
         
-        console.log(`Created admin notification (ID: ${adminNotification.id}) for admin: ${admin.id}`);
+        (`Created admin notification (ID: ${adminNotification.id}) for admin: ${admin.id}`);
 
         // Send to admin's personal channel using the correct channel format
         if (admin.clerkId) {
-          console.log(`Admin has clerkId: ${admin.clerkId}, sending to channel: ${getUserChannel(admin.clerkId)}`);
+          (`Admin has clerkId: ${admin.clerkId}, sending to channel: ${getUserChannel(admin.clerkId)}`);
           await pusherServer.trigger(
             getUserChannel(admin.clerkId), 
             EVENT_TYPES.NEW_NOTIFICATION, 
@@ -311,7 +311,7 @@ export async function createAppointment(data: {
           );
           
           // Also send to admin-db channel for compatibility
-          console.log(`Also sending to admin-db channel: user-db-${admin.clerkId}`);
+          (`Also sending to admin-db channel: user-db-${admin.clerkId}`);
           await pusherServer.trigger(
             `user-db-${admin.clerkId}`, 
             EVENT_TYPES.NEW_NOTIFICATION, 
@@ -333,7 +333,7 @@ export async function createAppointment(data: {
     }
 
     // Also trigger a general admin channel notification
-    console.log(`Sending notification to general admin channel: ${getAdminChannel()}`);
+    (`Sending notification to general admin channel: ${getAdminChannel()}`);
     await pusherServer.trigger(
       getAdminChannel(), 
       EVENT_TYPES.NEW_NOTIFICATION, 
@@ -394,7 +394,7 @@ export async function updateAppointment(
     let normalizedTimeSlot: string | undefined;
     if (data.timeSlot) {
       normalizedTimeSlot = normalizeTimeSlot(data.timeSlot);
-      console.log(`Update time slot normalized from ${data.timeSlot} to ${normalizedTimeSlot}`);
+      (`Update time slot normalized from ${data.timeSlot} to ${normalizedTimeSlot}`);
     }
 
     // Check if we're rescheduling (changing date or time)
@@ -427,7 +427,7 @@ export async function updateAppointment(
         }
       });
 
-      console.log(`Found ${existingAppointments} existing appointments for the new time slot`);
+      (`Found ${existingAppointments} existing appointments for the new time slot`);
       
       // Check if the new time slot is at capacity
       if (existingAppointments >= 2) {
@@ -518,7 +518,7 @@ export async function updateAppointment(
         
         // Emit event with updated availability
         const dateChannel = getDateAvailabilityChannel(updateDate);
-        console.log(`Sending availability update to channel: ${dateChannel}`);
+        (`Sending availability update to channel: ${dateChannel}`);
         
         await pusherServer.trigger(
           dateChannel,

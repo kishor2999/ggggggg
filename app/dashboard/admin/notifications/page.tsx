@@ -54,7 +54,7 @@ export default function AdminNotifications() {
     
     // Handle new notification events
     const handleNewNotification = (notification: Notification) => {
-      console.log("New notification received:", notification);
+     
       
       // Check if we already have this notification
       const exists = notifications.some(n => n.id === notification.id);
@@ -94,7 +94,7 @@ export default function AdminNotifications() {
         return;
       }
       
-      console.log(`Fetching notifications for admin with clerk ID: ${user.id}`);
+      (`Fetching notifications for admin with clerk ID: ${user.id}`);
       
       const response = await fetch(`/api/notifications?userId=${user.id}`);
       
@@ -104,12 +104,7 @@ export default function AdminNotifications() {
       }
       
       const data = await response.json();
-      console.log(`Received ${data.length} notifications from API:`, data.map((n: Notification) => ({
-        id: n.id,
-        type: n.type,
-        title: n.title,
-        isRead: n.isRead
-      })));
+    
       
       // Process notifications to ensure all fields are valid
       const processedData = data.map((notification: any) => {
@@ -153,7 +148,7 @@ export default function AdminNotifications() {
         n.type === "BOOKING" || 
         (n.type && n.type.includes("BOOKING"))
       );
-      console.log(`Found ${bookingNotifs.length} booking notifications`);
+      (`Found ${bookingNotifs.length} booking notifications`);
     } catch (error) {
       console.error("Error fetching notifications:", error);
       toast.error("Failed to load notifications");

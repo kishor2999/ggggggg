@@ -1,6 +1,12 @@
 "use client";
 
+import fetchUserLatestPayment from "@/app/actions/fetch-user-latest-payment";
+import fetchUserRecentServices from "@/app/actions/fetch-user-recent-services";
+import { getUserProfile, updateUserProfile } from "@/app/actions/users";
+import { getUserVehicles } from "@/app/actions/vehicles";
 import { DashboardLayout } from "@/components/dashboard-layout";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
@@ -9,9 +15,8 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Calendar, Car, CreditCard, User } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Table,
   TableBody,
@@ -20,24 +25,13 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
 import { useUser } from "@clerk/nextjs";
-import { useState, useEffect } from "react";
-import Link from "next/link";
 import { format } from "date-fns";
-import fetchUserRecentServices from "@/app/actions/fetch-user-recent-services";
-import fetchUserLatestPayment from "@/app/actions/fetch-user-latest-payment";
+import { Calendar, Car, CreditCard } from "lucide-react";
+import Link from "next/link";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { getUserVehicles } from "@/app/actions/vehicles";
-import { updateUserProfile, getUserProfile } from "@/app/actions/users";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { z } from "zod";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm } from "react-hook-form";
-import { SharedNotificationTest } from "@/components/shared-notification-test";
-import { NotificationDebug } from "@/components/notification-debug";
 
 interface RecentService {
   id: string;
@@ -112,13 +106,13 @@ export default function UserDashboard() {
     const loadDashboardData = async () => {
       try {
         setIsLoading(true);
-        console.log("Loading dashboard data...");
+        ("Loading dashboard data...");
 
         // Load recent services
         try {
-          console.log("Fetching recent services...");
+         
           const services = await fetchUserRecentServices(3);
-          console.log("Recent services fetched:", services.length);
+        
           setRecentServices(services);
         } catch (serviceError) {
           console.error("Error loading recent services:", serviceError);
@@ -126,9 +120,9 @@ export default function UserDashboard() {
 
         // Load latest payment
         try {
-          console.log("Fetching latest payment...");
+        
           const payment = await fetchUserLatestPayment();
-          console.log("Latest payment:", payment ? `ID: ${payment.id}` : "None found");
+          
           setLatestPayment(payment);
         } catch (paymentError) {
           console.error("Error loading latest payment:", paymentError);
@@ -136,9 +130,9 @@ export default function UserDashboard() {
 
         // Load vehicles
         try {
-          console.log("Fetching user vehicles...");
+         
           const userVehicles = await getUserVehicles();
-          console.log("Vehicles fetched:", userVehicles.length);
+         
           setVehicles(userVehicles);
         } catch (vehicleError) {
           console.error("Error loading vehicles:", vehicleError);
@@ -146,7 +140,7 @@ export default function UserDashboard() {
 
         // Load user profile
         try {
-          console.log("Fetching user profile...");
+         
           const profile = await getUserProfile();
           if (profile.phoneNumber) {
             setPhoneNumber(profile.phoneNumber);
@@ -154,16 +148,16 @@ export default function UserDashboard() {
           if (profile.address) {
             setAddress(profile.address);
           }
-          console.log("User profile loaded successfully");
+          
         } catch (profileError) {
           console.error("Error loading user profile:", profileError);
         }
       } catch (error) {
-        console.error("Error loading dashboard data:", error);
+       
         toast.error("Failed to load dashboard data");
       } finally {
         setIsLoading(false);
-        console.log("Dashboard data loading complete");
+        ("Dashboard data loading complete");
       }
     };
 

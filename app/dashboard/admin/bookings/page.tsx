@@ -145,21 +145,14 @@ export default function AdminBookings() {
   useEffect(() => {
     const loadData = async () => {
       try {
-        console.log("Fetching data...");
+        ("Fetching data...");
 
         // Fetch bookings data first to better debug issues
         const bookingsData = await getBookings();
-        console.log("Raw bookings data:", JSON.stringify(bookingsData, null, 2));
+       
 
         // Add diagnostic for payment statuses
-        if (bookingsData && Array.isArray(bookingsData)) {
-          console.log("Payment statuses in data:", bookingsData.map(b => ({
-            id: b.id,
-            status: b.status,
-            paymentStatus: b.paymentStatus,
-            paymentType: b.paymentType
-          })));
-        }
+     
 
         // Store debug info
         setDebugInfo({
@@ -188,10 +181,7 @@ export default function AdminBookings() {
           // Transform the appointments data to match the Booking interface
           const transformedBookings = bookingsData.map((booking) => {
             // Log each booking's payment details
-            console.log(`Booking ${booking.id} payment details:`, {
-              status: booking.paymentStatus,
-              type: booking.paymentType
-            });
+         
 
             return {
               id: booking.id,
@@ -227,7 +217,7 @@ export default function AdminBookings() {
             };
           });
 
-          console.log("Transformed bookings:", transformedBookings);
+        
           setBookings(transformedBookings);
         } else {
           console.error("No bookings data returned or invalid format");
@@ -286,7 +276,7 @@ export default function AdminBookings() {
     );
   });
 
-  console.log("Filtered bookings:", filteredBookings);
+ 
 
   // Sort bookings by date (most recent first)
   const sortedBookings = [...filteredBookings].sort(
@@ -307,7 +297,7 @@ export default function AdminBookings() {
       if (!selectedDate) return;
       
       const availability = await getTimeSlotAvailability(selectedDate);
-      console.log("Time slot availability raw data:", availability);
+    
       
       // Create a normalized version of the availability data that handles both formats
       const normalizedAvailability: Record<string, number> = {};
@@ -340,7 +330,7 @@ export default function AdminBookings() {
         }
       });
       
-      console.log("Normalized availability data:", normalizedAvailability);
+   
       setTimeSlotAvailability(normalizedAvailability);
       
       // Subscribe to real-time updates for this date
@@ -357,7 +347,6 @@ export default function AdminBookings() {
       
       // Handle availability updates
       channel.bind(EVENT_TYPES.TIMESLOT_AVAILABILITY_UPDATED, (data: any) => {
-        console.log("Received real-time availability update:", data);
         
         // Normalize the incoming data
         const normalizedUpdate: Record<string, number> = {};
@@ -390,11 +379,11 @@ export default function AdminBookings() {
           }
         });
         
-        console.log("Normalized update data:", normalizedUpdate);
+        
         setTimeSlotAvailability(normalizedUpdate);
       });
       
-      console.log(`Subscribed to availability updates for date: ${dateChannel}`);
+      (`Subscribed to availability updates for date: ${dateChannel}`);
     } catch (error) {
       console.error("Error loading time slot availability:", error);
     }
@@ -420,9 +409,7 @@ export default function AdminBookings() {
     };
 
     // Add detailed debugging for payment status
-    console.log("Editing booking:", bookingData);
-    console.log("Original payment status:", booking.paymentStatus);
-    console.log("Original payment type:", booking.paymentType);
+  
 
     setBookingToEdit(bookingData);
     setIsEditDialogOpen(true);
@@ -489,9 +476,7 @@ export default function AdminBookings() {
       if (!bookingToEdit) return;
       setIsSaving(true);
 
-      // Log payment status before sending
-      console.log("Before saving - Payment Status:", bookingToEdit.paymentStatus);
-      console.log("Before saving - Date:", bookingToEdit.date);
+     
 
       // Get the original booking to compare changes
       const originalBooking = bookings.find(b => b.id === bookingToEdit.id);
@@ -513,9 +498,7 @@ export default function AdminBookings() {
       const userTimezoneOffset = dateToSave.getTimezoneOffset() * 60000;
       const finalDateToSave = new Date(dateToSave.getTime() - userTimezoneOffset);
       
-      console.log("Original date:", bookingToEdit.date);
-      console.log("Initial adjusted date:", dateToSave);
-      console.log("Final date to save (fully adjusted):", finalDateToSave);
+     
 
       // Prepare the data for update
       const updateData: any = {
@@ -531,7 +514,7 @@ export default function AdminBookings() {
       // Make the update call
       const updatedBooking = await updateAppointment(bookingToEdit.id, updateData);
 
-      console.log("After saving - Updated booking data:", updatedBooking);
+     
 
       // Refresh the bookings data to ensure we have the latest data
       const refreshedBookings = await getBookings();
@@ -627,7 +610,7 @@ export default function AdminBookings() {
   // Update the state setters with proper typing
   const handleServiceChange = (value: string) => {
     // Service editing is disabled, so this is just for reference
-    console.log("Service editing is disabled");
+    ("Service editing is disabled");
     return; // Do nothing since service editing is disabled
   };
 
@@ -654,15 +637,12 @@ export default function AdminBookings() {
     // First set hours to noon
     adjustedDate.setHours(12, 0, 0, 0);
     
-    console.log("Selected date:", date);
-    console.log("Initial adjusted date:", adjustedDate);
-    
+   
     // When storing the date, ensure it's consistent with our display logic
     const userTimezoneOffset = adjustedDate.getTimezoneOffset() * 60000;
     const finalDate = new Date(adjustedDate.getTime() - userTimezoneOffset);
     
-    console.log("Final adjusted date with timezone compensation:", finalDate);
-    
+   
     // Load time slot availability for the new date
     loadTimeSlotAvailability(finalDate);
     
@@ -1179,11 +1159,6 @@ export default function AdminBookings() {
                                 const userTimezoneOffset = date.getTimezoneOffset() * 60000;
                                 const adjustedDate = new Date(date.getTime() + userTimezoneOffset);
                                 
-                                console.log("Original date in UI:", date);
-                                console.log("Hours in original date:", date.getHours());
-                                console.log("Timezone offset (minutes):", date.getTimezoneOffset());
-                                console.log("Adjusted date for display:", adjustedDate);
-                                console.log("ISO string for input:", adjustedDate.toISOString().split('T')[0]);
                                 
                                 return adjustedDate.toISOString().split('T')[0];
                               })()}
@@ -1200,10 +1175,7 @@ export default function AdminBookings() {
                                   const userTimezoneOffset = selectedDate.getTimezoneOffset() * 60000;
                                   const adjustedDate = new Date(selectedDate.getTime() - userTimezoneOffset);
                                   
-                                  console.log("Selected date from input:", e.target.value);
-                                  console.log("Date object created:", selectedDate);
-                                  console.log("Timezone offset (minutes):", selectedDate.getTimezoneOffset());
-                                  console.log("Adjusted date for storage:", adjustedDate);
+                                  
                                   
                                   handleDateChange(adjustedDate);
                                 }
@@ -1373,17 +1345,13 @@ export default function AdminBookings() {
                           <Select
                             value={bookingToEdit.paymentStatus}
                             onValueChange={(paymentStatus) => {
-                              console.log("Selected payment status:", paymentStatus);
+                             
 
                               // Update the payment status in the edit state
                               setBookingToEdit(prev => {
                                 if (!prev) return null;
 
-                                // Log the status change
-                                console.log("Updating payment status:", {
-                                  from: prev.paymentStatus,
-                                  to: paymentStatus
-                                });
+                              
 
                                 return {
                                   ...prev,

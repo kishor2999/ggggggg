@@ -34,7 +34,7 @@ export default function UsersPage() {
     const fetchUsers = async () => {
       try {
         const data = await getUsers()
-        console.log('User data with roles:', data.map(u => ({ id: u.id, name: u.name, role: u.role })))
+
         setUsers(data)
       } catch (error) {
         console.error('Error fetching users:', error)
@@ -46,7 +46,7 @@ export default function UsersPage() {
     fetchUsers()
   }, [])
 
-  console.log(users)
+
 
   // Filter users based on search query and role filter
   const filteredUsers = users.filter((user) => {

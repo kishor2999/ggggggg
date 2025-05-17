@@ -16,14 +16,14 @@ export async function PUT(req: Request) {
       );
     }
     
-    console.log(`Marking all notifications as read for user ${userId}`);
+    (`Marking all notifications as read for user ${userId}`);
     
     // Determine the correct user ID to use (handle Clerk ID translation)
     let internalUserId = userId;
     
     // If the ID looks like a Clerk ID (starts with "user_")
     if (userId.startsWith('user_')) {
-      console.log(`Clerk ID detected: ${userId}. Looking up internal user ID...`);
+      (`Clerk ID detected: ${userId}. Looking up internal user ID...`);
       
       // Look up the internal user ID from the clerk ID
       const user = await prisma.user.findFirst({
@@ -32,9 +32,9 @@ export async function PUT(req: Request) {
       
       if (user) {
         internalUserId = user.id;
-        console.log(`Found internal user ID ${internalUserId} for Clerk ID ${userId}`);
+        (`Found internal user ID ${internalUserId} for Clerk ID ${userId}`);
       } else {
-        console.log(`No user found with Clerk ID ${userId}`);
+        (`No user found with Clerk ID ${userId}`);
       }
     }
     
@@ -46,10 +46,10 @@ export async function PUT(req: Request) {
       }
     });
     
-    console.log(`Found ${unreadCount} unread notifications for internal user ID ${internalUserId}`);
+    (`Found ${unreadCount} unread notifications for internal user ID ${internalUserId}`);
     
     if (unreadCount === 0) {
-      console.log('No unread notifications found, nothing to update');
+      ('No unread notifications found, nothing to update');
       return NextResponse.json({
         success: true,
         count: 0,
@@ -68,11 +68,11 @@ export async function PUT(req: Request) {
       }
     });
     
-    console.log(`Updated ${result.count} notifications to read status`);
+    (`Updated ${result.count} notifications to read status`);
     
     // Trigger a Pusher event to notify other components about the status change
     if (result.count > 0) {
-      console.log(`Sending Pusher events to ${getUserChannel(userId)} and user-db-${userId}`);
+      (`Sending Pusher events to ${getUserChannel(userId)} and user-db-${userId}`);
       
       // Define the event payload
       const eventPayload = {
@@ -98,7 +98,7 @@ export async function PUT(req: Request) {
           eventPayload
         );
         
-        console.log('Pusher events sent successfully');
+        ('Pusher events sent successfully');
       } catch (pusherError) {
         console.error('Error sending Pusher events:', pusherError);
         // Continue with response even if Pusher fails

@@ -134,7 +134,7 @@ export default function AdminServices() {
   };
 
   const handleEditService = (service: any) => {
-    console.log("Editing service:", service); // Debug log
+   
     setSelectedService(service);
     setEditService({
       name: service.name,

@@ -130,7 +130,7 @@ export function NotificationMenu() {
         
         // Handle notification status updates (read/unread)
         const handleNotificationStatusUpdate = (data: any) => {
-            console.log('Received notification status update:', data);
+          
             
             if (data.action === 'read') {
                 // Update the specific notification's read status
@@ -144,9 +144,9 @@ export function NotificationMenu() {
                 
                 // Decrease the notification count
                 setNotificationCount(prev => Math.max(0, prev - 1));
-                console.log('Updated single notification read status');
+                
             } else if (data.action === 'mark-all-read') {
-                console.log('Received mark-all-read event, updating UI');
+             
                 // Update all notifications to be read
                 setNotifications(prev => 
                     prev.map(notification => ({ ...notification, isRead: true }))
@@ -154,7 +154,7 @@ export function NotificationMenu() {
                 
                 // Reset notification count to zero
                 setNotificationCount(0);
-                console.log('Updated all notifications to read status via Pusher');
+                ('Updated all notifications to read status via Pusher');
             }
         };
         
@@ -210,13 +210,13 @@ export function NotificationMenu() {
         }
 
         try {
-            console.log(`Marking notification ${id} as read`);
+            (`Marking notification ${id} as read`);
             
             // Show loading indicator
             const toastId = toast.loading("Updating notification...");
             
             // Send request to the server first, before updating UI
-            console.log(`Sending request to: /api/notifications/${id}/read`);
+            (`Sending request to: /api/notifications/${id}/read`);
             const response = await fetch(`/api/notifications/${id}/read`, {
                 method: 'PUT',
                 headers: {
@@ -235,7 +235,7 @@ export function NotificationMenu() {
             let responseData;
             try {
                 responseData = await response.json();
-                console.log("Mark as read response:", responseData);
+               
             } catch (jsonError) {
                 console.error("Error parsing response JSON:", jsonError);
                 throw new Error("Invalid response from server");
@@ -277,18 +277,18 @@ export function NotificationMenu() {
         
         // Only proceed if there are unread notifications
         if (notificationCount <= 0) {
-            console.log("No unread notifications to mark as read");
+            ("No unread notifications to mark as read");
             return;
         }
         
         try {
-            console.log("Marking all notifications as read for user:", user.id);
+            
             
             // Show loading indicator  
             const toastId = toast.loading("Marking all as read...");
             
             // Then update on the server first
-            console.log("Sending request to:", `/api/notifications/mark-all-read?userId=${user.id}`);
+
             const response = await fetch(`/api/notifications/mark-all-read?userId=${user.id}`, {
                 method: 'PUT',
                 headers: {
@@ -307,7 +307,7 @@ export function NotificationMenu() {
             let responseData;
             try {
                 responseData = await response.json();
-                console.log("Mark all as read response:", responseData);
+                
             } catch (jsonError) {
                 console.error("Error parsing response JSON:", jsonError);
                 throw new Error("Invalid response from server");

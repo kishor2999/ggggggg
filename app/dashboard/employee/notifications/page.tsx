@@ -1,15 +1,15 @@
 "use client";
 
-import { useState, useEffect } from "react";
 import { DashboardLayout } from "@/components/dashboard-layout";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { toast } from "sonner";
-import { useUser } from "@clerk/nextjs";
-import { Bell, CheckCircle2, Clock, Loader2, RefreshCw } from "lucide-react";
-import { format } from "date-fns";
+import { Card, CardContent } from "@/components/ui/card";
+import { EVENT_TYPES, getUserChannel, pusherClient } from "@/lib/pusher";
 import { cn } from "@/lib/utils";
-import { pusherClient, getUserChannel, EVENT_TYPES } from "@/lib/pusher";
+import { useUser } from "@clerk/nextjs";
+import { format } from "date-fns";
+import { Bell, CheckCircle2, Clock, Loader2, RefreshCw } from "lucide-react";
+import { useEffect, useState } from "react";
+import { toast } from "sonner";
 
 interface Notification {
   id: string;

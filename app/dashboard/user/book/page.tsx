@@ -195,7 +195,7 @@ export default function BookService() {
       };
 
       const appointment = await createAppointment(appointmentData);
-      console.log("Appointment created:", appointment);
+     
       
       // Show success message
       toast.success("Booking created successfully! Please complete payment.", {
@@ -240,7 +240,7 @@ export default function BookService() {
           appointment.id // Pass the appointment ID as the payment_id
         );
 
-        console.log("Generated eSewa params:", formData);
+       
         setEsewaParams(formData);
         setShowPaymentForm(true);
         return; // Don't navigate away yet
@@ -267,7 +267,7 @@ export default function BookService() {
       if (!selectedDate) return;
       
       const availability = await getTimeSlotAvailability(selectedDate);
-      console.log("Time slot availability raw data:", availability);
+      
       
       // Create a normalized version of the availability data that handles both formats
       const normalizedAvailability: Record<string, number> = {};
@@ -309,7 +309,7 @@ export default function BookService() {
         }
       });
       
-      console.log("Normalized availability data:", normalizedAvailability);
+      
       setTimeSlotAvailability(normalizedAvailability);
       
       // If the currently selected time slot is fully booked, reset selection
@@ -351,7 +351,7 @@ export default function BookService() {
       
       // Handle availability updates
       channel.bind(EVENT_TYPES.TIMESLOT_AVAILABILITY_UPDATED, (data: any) => {
-        console.log("Received real-time availability update:", data);
+       
         
         // Normalize the incoming data
         const normalizedUpdate: Record<string, number> = {};
@@ -393,7 +393,7 @@ export default function BookService() {
           }
         });
         
-        console.log("Normalized update data:", normalizedUpdate);
+        
         setTimeSlotAvailability(normalizedUpdate);
         
         // If the currently selected time slot is now fully booked, reset selection
@@ -422,7 +422,7 @@ export default function BookService() {
         }
       });
       
-      console.log(`Subscribed to availability updates for date: ${dateChannel}`);
+      (`Subscribed to availability updates for date: ${dateChannel}`);
     } catch (error) {
       console.error("Error loading time slot availability:", error);
       // Don't show an error toast to avoid confusing the user

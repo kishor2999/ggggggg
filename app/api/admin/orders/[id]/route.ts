@@ -34,7 +34,7 @@ export async function GET(
     // }
     
     const orderId = params.id;
-    console.log("Fetching order details for ID:", orderId);
+    
     
     const order = await prisma.order.findUnique({
       where: { id: orderId },
@@ -64,13 +64,13 @@ export async function GET(
     });
     
     if (!order) {
-      console.log("Order not found with ID:", orderId);
+     
       // For debugging purposes, get all order IDs to see what's available
       const allOrders = await prisma.order.findMany({
         select: { id: true },
         take: 10
       });
-      console.log("Available order IDs (first 10):", allOrders.map(o => o.id));
+
       
       return NextResponse.json(
         { error: "Order not found" },
@@ -78,7 +78,7 @@ export async function GET(
       );
     }
     
-    console.log("Order found:", order.id);
+ 
     
     // Serialize Decimal values to avoid Next.js serialization issues
     const serializedOrder = {
@@ -127,7 +127,7 @@ export async function PATCH(
     const orderId = params.id;
     const { status, sendNotification } = await request.json();
     
-    console.log("Updating order status:", orderId, "New status:", status);
+
     
     // Validate the status
     const validStatuses = ["PENDING", "PROCESSING", "SHIPPED", "DELIVERED", "CANCELED", "REFUNDED"];
@@ -221,7 +221,7 @@ export async function PATCH(
             }
           });
           
-          console.log(`Created notification for user ${user.id}:`, notification.id);
+         
           
           // Notification data to be sent via Pusher
           const notificationData = {
@@ -238,11 +238,11 @@ export async function PATCH(
           
           // Also send to Clerk ID if available
           if (user.clerkId) {
-            console.log(`Also sending to Clerk ID: ${user.clerkId}`);
+            (`Also sending to Clerk ID: ${user.clerkId}`);
             await pusherServer.trigger(getUserChannel(user.clerkId), EVENT_TYPES.NEW_NOTIFICATION, notificationData);
           }
           
-          console.log(`Notification sent to user about order status change to ${status}`);
+          (`Notification sent to user about order status change to ${status}`);
         } else {
           console.error("Could not find user to send notification to");
         }

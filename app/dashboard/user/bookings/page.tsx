@@ -68,12 +68,7 @@ export default function BookingHistory() {
       try {
         setLoading(true);
         const appointments = await fetchUserAppointments();
-        console.log("Bookings loaded:", appointments.map((app: any) => ({
-          id: app.id,
-          status: app.status,
-          paymentStatus: app.paymentStatus,
-          paymentType: app.paymentType
-        })));
+      
         setBookings(appointments);
       } catch (error) {
         console.error("Error fetching bookings:", error);
@@ -91,7 +86,7 @@ export default function BookingHistory() {
         const paymentSuccess = getUrlParam('payment_success') === 'true';
         
         if (paymentSuccess) {
-          console.log("Payment success detected in URL");
+          ("Payment success detected in URL");
           
           // Show success toast
           toast.success("Payment completed successfully!", {
@@ -190,7 +185,7 @@ export default function BookingHistory() {
 
   const getPaymentStatusBadge = (status: string, paymentType: string) => {
     // Add debugging
-    console.log("Payment status badge:", { status, paymentType });
+
 
     // Handle null or undefined values
     if (!status) return <Badge variant="outline">Unknown</Badge>;

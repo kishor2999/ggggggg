@@ -1,7 +1,7 @@
-import { NextResponse } from "next/server";
 import prisma from "@/lib/db";
-import { verifySignature, checkTransactionStatus, ESEWA_CONFIG } from "@/lib/esewa-utils";
-import { pusherServer, getUserChannel, getAdminChannel, EVENT_TYPES } from "@/lib/pusher";
+import { verifySignature } from "@/lib/esewa-utils";
+import { EVENT_TYPES, getAdminChannel, getUserChannel, pusherServer } from "@/lib/pusher";
+import { NextResponse } from "next/server";
 
 export async function GET(request: Request) {
   try {
@@ -9,11 +9,11 @@ export async function GET(request: Request) {
     const url = new URL(request.url);
     
     // Log all query parameters for debugging
-    console.log("All query parameters:", Object.fromEntries(url.searchParams.entries()));
+  
     
     // Extract the 'data' parameter containing the Base64 encoded response
     const encodedData = url.searchParams.get("data");
-    console.log("Encoded data received:", encodedData ? "yes" : "no");
+  
     
     // Handle the case where no data is received
     if (!encodedData) {
@@ -26,7 +26,7 @@ export async function GET(request: Request) {
     try {
       const decodedData = Buffer.from(encodedData, "base64").toString();
       responseData = JSON.parse(decodedData);
-      console.log("Decoded eSewa response:", responseData);
+     
     } catch (error) {
       console.error("Error decoding eSewa response:", error);
       return NextResponse.redirect(`${url.origin}/dashboard/user/orders/failed?reason=invalid_response`);
@@ -62,7 +62,7 @@ export async function GET(request: Request) {
 
     // If order is found, process e-commerce payment
     if (order) {
-      console.log("Found matching order:", order.id);
+    
       
       // Update the order status
       await prisma.order.update({
@@ -112,14 +112,14 @@ export async function GET(request: Request) {
         isRead: false
       };
 
-      console.log(`Sending notification to user with DB ID: ${order.userId}`);
+      (`Sending notification to user with DB ID: ${order.userId}`);
       
       // Send real-time notification to the user
       await pusherServer.trigger(getUserChannel(order.userId), EVENT_TYPES.NEW_NOTIFICATION, notificationData);
 
       // Send to Clerk user ID channel if available
       if (orderUser?.clerkId) {
-        console.log(`Also sending notification to Clerk ID: ${orderUser.clerkId}`);
+        (`Also sending notification to Clerk ID: ${orderUser.clerkId}`);
         await pusherServer.trigger(getUserChannel(orderUser.clerkId), EVENT_TYPES.NEW_NOTIFICATION, notificationData);
       }
 
@@ -133,7 +133,7 @@ export async function GET(request: Request) {
         }
       });
 
-      console.log(`Found ${adminUsers.length} admin users to notify about new order payment`);
+      (`Found ${adminUsers.length} admin users to notify about new order payment`);
 
       // Create notification for all admins
       for (const admin of adminUsers) {
@@ -166,14 +166,14 @@ export async function GET(request: Request) {
           isRead: false
         };
 
-        console.log(`Sending notification to admin: ${admin.id}`);
+        (`Sending notification to admin: ${admin.id}`);
         
         // Send real-time notification to each admin's DB ID channel
         await pusherServer.trigger(getUserChannel(admin.id), EVENT_TYPES.NEW_NOTIFICATION, adminNotificationData);
         
         // Also send to admin's Clerk ID if available
         if (admin.clerkId) {
-          console.log(`Also sending notification to admin's Clerk ID: ${admin.clerkId}`);
+          (`Also sending notification to admin's Clerk ID: ${admin.clerkId}`);
           await pusherServer.trigger(getUserChannel(admin.clerkId), EVENT_TYPES.NEW_NOTIFICATION, adminNotificationData);
         }
       }
@@ -185,7 +185,7 @@ export async function GET(request: Request) {
         timestamp: new Date().toISOString()
       });
       
-      console.log("E-commerce payment successful - redirecting to success page");
+      ("E-commerce payment successful - redirecting to success page");
       return NextResponse.redirect(`${url.origin}/dashboard/user/orders/success?order_id=${order.id}&clear_cart=true`);
     }
     
@@ -209,7 +209,7 @@ export async function GET(request: Request) {
     
     // If appointment found, process car wash payment
     if (appointment) {
-      console.log("Found matching appointment:", appointment.id);
+      
       
       // Update the appointment status
       await prisma.appointment.update({
@@ -259,14 +259,14 @@ export async function GET(request: Request) {
       };
 
       // Log notification details
-      console.log(`Sending notification to user: ${appointment.userId} with ID: ${userNotification.id}`);
+      (`Sending notification to user: ${appointment.userId} with ID: ${userNotification.id}`);
 
       // Send to DB user ID channel
       await pusherServer.trigger(getUserChannel(appointment.userId), EVENT_TYPES.NEW_NOTIFICATION, notificationData);
 
       // Send to Clerk user ID channel if available
       if (user?.clerkId) {
-        console.log(`Also sending notification to Clerk ID: ${user.clerkId}`);
+        (`Also sending notification to Clerk ID: ${user.clerkId}`);
         await pusherServer.trigger(getUserChannel(user.clerkId), EVENT_TYPES.NEW_NOTIFICATION, notificationData);
       }
 
@@ -280,7 +280,7 @@ export async function GET(request: Request) {
         }
       });
 
-      console.log(`Found ${adminUsers.length} admin users to notify about new appointment payment`);
+      (`Found ${adminUsers.length} admin users to notify about new appointment payment`);
 
       // Create notification for all admins
       for (const admin of adminUsers) {
@@ -314,14 +314,14 @@ export async function GET(request: Request) {
           isRead: false
         };
 
-        console.log(`Sending notification to admin: ${admin.id} with ID: ${adminNotification.id}`);
+        (`Sending notification to admin: ${admin.id} with ID: ${adminNotification.id}`);
         
         // Send real-time notification to each admin
         await pusherServer.trigger(getUserChannel(admin.id), EVENT_TYPES.NEW_NOTIFICATION, adminNotificationData);
         
         // Also send to admin's Clerk ID if available
         if (admin.clerkId) {
-          console.log(`Also sending notification to admin's Clerk ID: ${admin.clerkId}`);
+          (`Also sending notification to admin's Clerk ID: ${admin.clerkId}`);
           await pusherServer.trigger(getUserChannel(admin.clerkId), EVENT_TYPES.NEW_NOTIFICATION, adminNotificationData);
         }
       }
@@ -334,7 +334,7 @@ export async function GET(request: Request) {
         timestamp: new Date().toISOString()
       });
       
-      console.log("Car wash payment successful - redirecting to bookings");
+      ("Car wash payment successful - redirecting to bookings");
       
       // Create a properly encoded redirect URL
       const successUrl = new URL(`${url.origin}/dashboard/user/bookings`);
