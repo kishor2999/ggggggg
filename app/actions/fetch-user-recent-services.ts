@@ -21,15 +21,17 @@ export default async function fetchUserRecentServices(limit = 3) {
       throw new Error("User not found");
     }
 
-    // Fetch recent appointments (services) for this user
+    console.log(`Fetching recent services for user ${user.id} (clerkId: ${userId})`);
+
+    // Fetch recent appointments (services) for this user - include all statuses now
     const recentAppointments = await prisma.appointment.findMany({
       where: { 
         userId: user.id,
-        status: "COMPLETED" 
+        // Removed the status filter to show all appointments
       },
       include: {
         service: true,
-        staff: {
+        employee: {
           include: {
             user: true,
           },
@@ -41,6 +43,8 @@ export default async function fetchUserRecentServices(limit = 3) {
       take: limit,
     });
 
+    console.log(`Found ${recentAppointments.length} recent appointments`);
+
     // Convert Decimal objects to strings to avoid serialization issues
     const serializedAppointments = recentAppointments.map(appointment => ({
       ...appointment,
@@ -49,9 +53,9 @@ export default async function fetchUserRecentServices(limit = 3) {
         ...appointment.service,
         price: appointment.service.price.toString(),
       },
-      staff: appointment.staff ? {
-        ...appointment.staff,
-        user: appointment.staff.user,
+      employee: appointment.employee ? {
+        ...appointment.employee,
+        user: appointment.employee.user,
       } : null,
     }));
 

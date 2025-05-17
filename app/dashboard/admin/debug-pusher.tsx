@@ -1,191 +1,347 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Label } from "@/components/ui/label";
+import { useUser } from "@clerk/nextjs";
 import { toast } from "sonner";
-import { pusherClient } from "@/lib/pusher";
+import { pusherClient, getUserChannel, getAdminChannel, EVENT_TYPES } from "@/lib/pusher";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 export default function DebugPusher() {
-    const [isConnected, setIsConnected] = useState(false);
-    const [connectionState, setConnectionState] = useState("Not connected");
-    const [isTesting, setIsTesting] = useState(false);
-    const [lastMessage, setLastMessage] = useState("");
-    const testChannel = "test-channel";
-    const testEvent = "test-event";
+  const { user } = useUser();
+  const [title, setTitle] = useState("Test Message");
+  const [message, setMessage] = useState("This is a test message from Pusher");
+  const [loading, setLoading] = useState(false);
+  const [channel, setChannel] = useState("");
+  const [event, setEvent] = useState(EVENT_TYPES.NEW_NOTIFICATION);
+  const [channelType, setChannelType] = useState("user");
+  const [receivedMessages, setReceivedMessages] = useState<any[]>([]);
+  const [listenChannel, setListenChannel] = useState("");
+  const [isListening, setIsListening] = useState(false);
 
-    // Check Pusher connection status when component mounts
-    useEffect(() => {
-        // Show current connection state
-        setConnectionState(pusherClient.connection.state);
+  // Effect to create and manage Pusher subscription
+  useEffect(() => {
+    if (!listenChannel || !isListening) return;
 
-        // Add event listeners for connection status changes
-        const handleConnected = () => {
-            setIsConnected(true);
-            setConnectionState("connected");
-            toast.success("Pusher connected successfully!");
-        };
+    // Subscribe to the specified channel
+    try {
+      console.log(`Subscribing to channel: ${listenChannel}`);
+      const channel = pusherClient.subscribe(listenChannel);
 
-        const handleDisconnected = () => {
-            setIsConnected(false);
-            setConnectionState("disconnected");
-            toast.error("Pusher disconnected");
-        };
+      // Bind to all events - we want to see everything for debugging
+      const handleEvent = (eventName: string, data: any) => {
+        console.log(`Received event ${eventName} on channel ${listenChannel}:`, data);
+        setReceivedMessages(prev => [
+          {
+            timestamp: new Date().toISOString(),
+            channel: listenChannel,
+            event: eventName,
+            data
+          },
+          ...prev
+        ]);
 
-        const handleError = (error: any) => {
-            console.error("Pusher connection error:", error);
-            toast.error(`Pusher error: ${error.message || "Unknown error"}`);
-        };
+        toast.info(`Event received: ${eventName}`, {
+          description: `Channel: ${listenChannel}`,
+        });
+      };
 
-        // Subscribe to connection events
-        pusherClient.connection.bind("connected", handleConnected);
-        pusherClient.connection.bind("disconnected", handleDisconnected);
-        pusherClient.connection.bind("error", handleError);
+      // Bind to specific events we know about
+      for (const eventType of Object.values(EVENT_TYPES)) {
+        channel.bind(eventType, (data: any) => handleEvent(eventType, data));
+      }
 
-        // If already connected, update state
-        if (pusherClient.connection.state === "connected") {
-            setIsConnected(true);
+      // Also bind to a generic event handler to catch any other events
+      channel.bind_global((eventName: string, data: any) => {
+        // Only handle events that aren't already handled
+        if (!Object.values(EVENT_TYPES).includes(eventName)) {
+          handleEvent(eventName, data);
         }
+      });
 
-        // Cleanup
-        return () => {
-            pusherClient.connection.unbind("connected", handleConnected);
-            pusherClient.connection.unbind("disconnected", handleDisconnected);
-            pusherClient.connection.unbind("error", handleError);
-        };
-    }, []);
+      // Cleanup function
+      return () => {
+        console.log(`Unsubscribing from channel: ${listenChannel}`);
+        channel.unbind_all();
+        pusherClient.unsubscribe(listenChannel);
+      };
+    } catch (error) {
+      console.error("Error setting up Pusher subscription:", error);
+      toast.error("Failed to subscribe to Pusher channel");
+      setIsListening(false);
+    }
+  }, [listenChannel, isListening]);
 
-    // Set up a test channel and event
-    useEffect(() => {
-        const channel = pusherClient.subscribe(testChannel);
+  const sendPusherMessage = async () => {
+    if (!channel || !event) {
+      toast.error("Channel and event type are required");
+      return;
+    }
 
-        const handleTestEvent = (data: any) => {
-            setLastMessage(JSON.stringify(data));
-            toast.success("Received Pusher test event!", {
-                description: `Message: ${data.message || JSON.stringify(data)}`,
-            });
-        };
+    try {
+      setLoading(true);
 
-        channel.bind(testEvent, handleTestEvent);
+      const response = await fetch("/api/test-pusher", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          channel,
+          event,
+          data: {
+            title,
+            message,
+            timestamp: new Date().toISOString(),
+            id: Date.now().toString(),
+            isRead: false,
+            type: "DEBUG"
+          }
+        }),
+      });
 
-        return () => {
-            channel.unbind(testEvent, handleTestEvent);
-            pusherClient.unsubscribe(testChannel);
-        };
-    }, []);
+      const data = await response.json();
+      
+      if (response.ok) {
+        toast.success("Message sent successfully!", {
+          description: `Channel: ${channel}, Event: ${event}`,
+        });
+        console.log("Pusher message sent:", data);
+      } else {
+        toast.error("Failed to send message");
+        console.error("Error:", data);
+      }
+    } catch (error) {
+      console.error("Error sending Pusher message:", error);
+      toast.error("An error occurred while sending the message");
+    } finally {
+      setLoading(false);
+    }
+  };
 
-    const handleTestDummyNotification = async () => {
-        try {
-            // Test notification without Pusher
-            toast.info("Test Toast Notification", {
-                description: "This is a test notification using toast only (no Pusher)",
-                duration: 5000,
-            });
-        } catch (error) {
-            console.error("Error showing test notification:", error);
-        }
-    };
+  const startListening = () => {
+    if (!listenChannel) {
+      toast.error("Please enter a channel to listen to");
+      return;
+    }
+    
+    setIsListening(true);
+    toast.success(`Started listening to channel: ${listenChannel}`);
+  };
 
-    const handleTestPusherConnection = () => {
-        // Try to trigger a reconnection
-        pusherClient.connect();
-        toast.info("Attempting to connect to Pusher...");
-    };
+  const stopListening = () => {
+    setIsListening(false);
+    toast.info(`Stopped listening to channel: ${listenChannel}`);
+  };
 
-    const handleTestPusherEvent = async () => {
-        setIsTesting(true);
-        try {
-            const response = await fetch("/api/test-pusher", {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                },
-                body: JSON.stringify({
-                    channel: testChannel,
-                    event: testEvent,
-                    data: {
-                        message: "Hello from Pusher test!",
-                        timestamp: new Date().toISOString(),
-                    },
-                }),
-            });
+  const clearMessages = () => {
+    setReceivedMessages([]);
+    toast.info("Cleared message history");
+  };
 
-            if (!response.ok) {
-                const error = await response.json();
-                throw new Error(error.message || "Failed to trigger Pusher event");
-            }
+  const updateChannelFromType = (type: string) => {
+    setChannelType(type);
+    
+    if (type === "user" && user) {
+      setChannel(getUserChannel(user.id));
+    } else if (type === "admin") {
+      setChannel(getAdminChannel());
+    } else if (type === "custom") {
+      setChannel("");
+    }
+  };
 
-            toast.info("Pusher event triggered", {
-                description: "Waiting for event to be received...",
-            });
-        } catch (error) {
-            console.error("Error triggering Pusher event:", error);
-            toast.error("Failed to trigger Pusher event");
-        } finally {
-            setIsTesting(false);
-        }
-    };
-
-    return (
-        <Card className="mt-8">
+  return (
+    <div className="container mx-auto py-10">
+      <h1 className="text-2xl font-bold mb-6">Pusher Debugging Tools</h1>
+      
+      <Tabs defaultValue="send">
+        <TabsList className="mb-4">
+          <TabsTrigger value="send">Send Messages</TabsTrigger>
+          <TabsTrigger value="listen">Listen for Events</TabsTrigger>
+        </TabsList>
+        
+        <TabsContent value="send">
+          <Card>
             <CardHeader>
-                <CardTitle>Pusher Debugging Information</CardTitle>
+              <CardTitle>Send Pusher Message</CardTitle>
+              <CardDescription>
+                Send a test message to any Pusher channel
+              </CardDescription>
             </CardHeader>
-            <CardContent>
-                <div className="space-y-4">
-                    <div>
-                        <h3 className="font-medium mb-2">Pusher Connection Status:</h3>
-                        <div className="bg-slate-100 p-3 rounded-md">
-                            <div className="flex justify-between py-1">
-                                <span>Connection State:</span>
-                                <span className={`font-medium ${connectionState === "connected" ? "text-green-500" :
-                                    connectionState === "connecting" ? "text-yellow-500" : "text-red-500"
-                                    }`}>
-                                    {connectionState}
-                                </span>
-                            </div>
-                            <div className="flex justify-between py-1">
-                                <span>App Key:</span>
-                                <span className="font-mono">0e7bfe8f3a925a36891a</span>
-                            </div>
-                            <div className="flex justify-between py-1">
-                                <span>Cluster:</span>
-                                <span className="font-mono">ap2</span>
-                            </div>
-                            {lastMessage && (
-                                <div className="pt-2 mt-2 border-t">
-                                    <span className="text-sm font-medium">Last Received Message:</span>
-                                    <div className="bg-slate-200 p-2 rounded mt-1 text-xs overflow-auto break-all">
-                                        {lastMessage}
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-                    </div>
-
-                    <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2 pt-4">
-                        <Button
-                            onClick={handleTestPusherConnection}
-                            variant="outline"
-                        >
-                            Test Connection
-                        </Button>
-                        <Button
-                            onClick={handleTestPusherEvent}
-                            variant="default"
-                            disabled={isTesting || connectionState !== "connected"}
-                        >
-                            {isTesting ? "Sending..." : "Send Test Event"}
-                        </Button>
-                        <Button
-                            onClick={handleTestDummyNotification}
-                            variant="secondary"
-                        >
-                            Test Toast (No Pusher)
-                        </Button>
-                    </div>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="channelType">Channel Type</Label>
+                  <Select 
+                    value={channelType} 
+                    onValueChange={updateChannelFromType}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select channel type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="user">Current User Channel</SelectItem>
+                      <SelectItem value="admin">Admin Channel</SelectItem>
+                      <SelectItem value="custom">Custom Channel</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="event">Event Type</Label>
+                  <Select 
+                    value={event} 
+                    onValueChange={setEvent}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select event type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {Object.entries(EVENT_TYPES).map(([key, value]) => (
+                        <SelectItem key={key} value={value}>
+                          {key} ({value})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="channel">Channel Name</Label>
+                <Input
+                  id="channel"
+                  value={channel}
+                  onChange={(e) => setChannel(e.target.value)}
+                  placeholder="Enter channel name"
+                  disabled={channelType !== "custom"}
+                />
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="title">Message Title</Label>
+                <Input
+                  id="title"
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  placeholder="Enter message title"
+                />
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="message">Message Body</Label>
+                <Input
+                  id="message"
+                  value={message}
+                  onChange={(e) => setMessage(e.target.value)}
+                  placeholder="Enter message body"
+                />
+              </div>
             </CardContent>
-        </Card>
-    );
+            <CardFooter>
+              <Button 
+                onClick={sendPusherMessage} 
+                disabled={loading || !channel || !event}
+                className="w-full"
+              >
+                {loading ? "Sending..." : "Send Pusher Message"}
+              </Button>
+            </CardFooter>
+          </Card>
+        </TabsContent>
+        
+        <TabsContent value="listen">
+          <div className="grid gap-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Listen for Pusher Events</CardTitle>
+                <CardDescription>
+                  Subscribe to a channel and monitor events
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex space-x-2">
+                  <div className="flex-1 space-y-2">
+                    <Label htmlFor="listenChannel">Channel to Listen</Label>
+                    <Input
+                      id="listenChannel"
+                      value={listenChannel}
+                      onChange={(e) => setListenChannel(e.target.value)}
+                      placeholder="Enter channel name to listen to"
+                      disabled={isListening}
+                    />
+                  </div>
+                  
+                  <div className="pt-8">
+                    {isListening ? (
+                      <Button 
+                        onClick={stopListening} 
+                        variant="destructive"
+                      >
+                        Stop Listening
+                      </Button>
+                    ) : (
+                      <Button 
+                        onClick={startListening} 
+                        disabled={!listenChannel}
+                      >
+                        Start Listening
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle>Event Log</CardTitle>
+                <Button 
+                  onClick={clearMessages} 
+                  variant="outline" 
+                  size="sm" 
+                  disabled={receivedMessages.length === 0}
+                >
+                  Clear Log
+                </Button>
+              </CardHeader>
+              <CardContent>
+                <div className="bg-muted p-2 rounded-md h-[300px] overflow-y-auto">
+                  {receivedMessages.length === 0 ? (
+                    <div className="text-center text-muted-foreground py-12">
+                      No events received yet. Start listening to a channel to see events.
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {receivedMessages.map((msg, index) => (
+                        <div key={index} className="bg-card p-3 rounded border text-sm">
+                          <div className="flex justify-between mb-1">
+                            <span className="font-medium">{msg.event}</span>
+                            <span className="text-xs text-muted-foreground">
+                              {new Date(msg.timestamp).toLocaleTimeString()}
+                            </span>
+                          </div>
+                          <div className="text-xs text-muted-foreground mb-1">
+                            Channel: {msg.channel}
+                          </div>
+                          <pre className="text-xs bg-muted-foreground/10 p-2 rounded mt-1 overflow-x-auto">
+                            {JSON.stringify(msg.data, null, 2)}
+                          </pre>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
+      </Tabs>
+    </div>
+  );
 } 

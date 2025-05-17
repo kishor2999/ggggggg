@@ -47,17 +47,14 @@ interface RecentService {
   service: {
     name: string;
   };
-  staff?: {
-    user: {
-      name: string;
-    }
-  } | null;
+    employee?: {    user: {      name: string;    }  } | null;
 }
 
 interface LatestPayment {
   id: string;
   amount: string;
   createdAt: Date;
+  status: string;
   appointment?: {
     service: {
       name: string;
@@ -115,21 +112,41 @@ export default function UserDashboard() {
     const loadDashboardData = async () => {
       try {
         setIsLoading(true);
+        console.log("Loading dashboard data...");
 
         // Load recent services
-        const services = await fetchUserRecentServices(3);
-        setRecentServices(services);
+        try {
+          console.log("Fetching recent services...");
+          const services = await fetchUserRecentServices(3);
+          console.log("Recent services fetched:", services.length);
+          setRecentServices(services);
+        } catch (serviceError) {
+          console.error("Error loading recent services:", serviceError);
+        }
 
         // Load latest payment
-        const payment = await fetchUserLatestPayment();
-        setLatestPayment(payment);
+        try {
+          console.log("Fetching latest payment...");
+          const payment = await fetchUserLatestPayment();
+          console.log("Latest payment:", payment ? `ID: ${payment.id}` : "None found");
+          setLatestPayment(payment);
+        } catch (paymentError) {
+          console.error("Error loading latest payment:", paymentError);
+        }
 
         // Load vehicles
-        const userVehicles = await getUserVehicles();
-        setVehicles(userVehicles);
+        try {
+          console.log("Fetching user vehicles...");
+          const userVehicles = await getUserVehicles();
+          console.log("Vehicles fetched:", userVehicles.length);
+          setVehicles(userVehicles);
+        } catch (vehicleError) {
+          console.error("Error loading vehicles:", vehicleError);
+        }
 
         // Load user profile
         try {
+          console.log("Fetching user profile...");
           const profile = await getUserProfile();
           if (profile.phoneNumber) {
             setPhoneNumber(profile.phoneNumber);
@@ -137,14 +154,16 @@ export default function UserDashboard() {
           if (profile.address) {
             setAddress(profile.address);
           }
-        } catch (error) {
-          console.error("Error loading user profile:", error);
+          console.log("User profile loaded successfully");
+        } catch (profileError) {
+          console.error("Error loading user profile:", profileError);
         }
       } catch (error) {
         console.error("Error loading dashboard data:", error);
         toast.error("Failed to load dashboard data");
       } finally {
         setIsLoading(false);
+        console.log("Dashboard data loading complete");
       }
     };
 
@@ -277,6 +296,15 @@ export default function UserDashboard() {
                     <p className="text-sm text-muted-foreground">
                       {getPaymentDescription()}
                     </p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Status: <span className={
+                        latestPayment.status === "PAID" || latestPayment.status === "SUCCESS" ? "text-green-600 font-semibold" :
+                        latestPayment.status === "PENDING" ? "text-yellow-600 font-semibold" :
+                        "text-gray-600 font-semibold"
+                      }>
+                        {latestPayment.status}
+                      </span>
+                    </p>
                   </>
                 ) : (
                   <>
@@ -333,9 +361,17 @@ export default function UserDashboard() {
                         <TableCell className="font-medium">{service.service.name}</TableCell>
                         <TableCell>{formatDate(service.date)}</TableCell>
                         <TableCell>
-                          <Badge className="bg-green-500">Completed</Badge>
+                          <Badge className={
+                            service.status === "COMPLETED" ? "bg-green-500" :
+                            service.status === "PENDING" ? "bg-yellow-500" :
+                            service.status === "CANCELED" ? "bg-red-500" :
+                            service.status === "SCHEDULED" ? "bg-blue-500" :
+                            "bg-gray-500"
+                          }>
+                            {service.status}
+                          </Badge>
                         </TableCell>
-                        <TableCell>{service.staff?.user.name || "Not assigned"}</TableCell>
+                        <TableCell>{service.employee?.user.name || "Not assigned"}</TableCell>
                         <TableCell className="text-right">Rs{Number(service.price).toFixed(2)}</TableCell>
                       </TableRow>
                     ))}
@@ -452,8 +488,8 @@ export default function UserDashboard() {
         </div>
       </div>
 
-      <SharedNotificationTest dashboardType="user" />
-      <NotificationDebug />
+      {/* <SharedNotificationTest dashboardType="user" />
+      <NotificationDebug /> */}
     </DashboardLayout>
   );
 }

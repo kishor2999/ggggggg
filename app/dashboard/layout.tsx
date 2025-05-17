@@ -1,4 +1,5 @@
 import { ReactNode } from 'react';
+import ClientLayout from '../client-layout';
 
 export const metadata = {
   title: 'Dashboard',
@@ -10,5 +11,5 @@ export default function DashboardLayout({
 }: {
   children: ReactNode;
 }) {
-  return <>{children}</>;
+  return <ClientLayout>{children}</ClientLayout>;
 } 

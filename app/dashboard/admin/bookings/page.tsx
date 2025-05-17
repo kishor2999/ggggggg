@@ -2,13 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { DashboardLayout } from "@/components/dashboard-layout";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import {  Card,  CardContent,  CardDescription,  CardHeader,  CardTitle,} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -179,15 +173,6 @@ export default function AdminBookings() {
               type: booking.paymentType
             });
 
-            // Determine the correct payment status based on both status and type
-            let paymentStatus = booking.paymentStatus || "PENDING";
-
-            // If payment type is HALF and status is PAID/SUCCESS, use HALF_PAID
-            if ((paymentStatus === "PAID" || paymentStatus === "SUCCESS") &&
-              booking.paymentType === "HALF") {
-              paymentStatus = "HALF_PAID";
-            }
-
             return {
               id: booking.id,
               service: {
@@ -209,8 +194,8 @@ export default function AdminBookings() {
               timeSlot: booking.timeSlot,
               notes: booking.notes,
               status: booking.status,
-              // Use the determined payment status
-              paymentStatus: paymentStatus,
+              // Use the raw payment status from DB
+              paymentStatus: booking.paymentStatus || "PAID",
               paymentMethod: booking.paymentMethod,
               paymentType: booking.paymentType || "FULL",
               updatedAt: booking.updatedAt,
@@ -260,7 +245,7 @@ export default function AdminBookings() {
     const matchesStatus =
       filterStatus === "all" ||
       (filterStatus === "active" &&
-        (booking.status === "PENDING" || booking.status === "IN_PROGRESS")) ||
+        (booking.status === "PENDING" || booking.status === "SCHEDULED" || booking.status === "IN_PROGRESS")) ||
       (filterStatus === "completed" && booking.status === "COMPLETED") ||
       (filterStatus === "cancelled" && booking.status === "CANCELLED");
 
@@ -297,8 +282,7 @@ export default function AdminBookings() {
       notes: booking.notes,
       price: booking.price ? Number(booking.price) : 0,
       status: booking.status || "PENDING",
-      // Use the original payment status directly - don't normalize
-      paymentStatus: booking.paymentStatus,
+      paymentStatus: booking.paymentStatus || "PAID",
       paymentMethod: booking.paymentMethod || "",
       paymentType: booking.paymentType || "FULL",
       updatedAt: booking.updatedAt || new Date(),
@@ -308,39 +292,37 @@ export default function AdminBookings() {
     // Add detailed debugging for payment status
     console.log("Editing booking:", bookingData);
     console.log("Original payment status:", booking.paymentStatus);
+    console.log("Original payment type:", booking.paymentType);
 
     setBookingToEdit(bookingData);
     setIsEditDialogOpen(true);
   };
 
-  // Helper function to normalize payment status
-  const normalizePaymentStatus = (status: string | undefined): string => {
-    if (!status) return "PENDING";
-
-    const normalized = status.toUpperCase();
-
-    // Use consistent values
-    if (normalized === "SUCCESS") {
-      return "PAID"; // Convert legacy SUCCESS to PAID
+  const getPaymentStatusBadge = (status: string) => {
+    // Handle standard statuses directly
+    if (status === "PAID" || status === "SUCCESS") {
+      return <Badge className="bg-green-500">PAID</Badge>;
     }
 
-    if (normalized === "PAID") {
-      return "PAID";
+    if (status === "REFUNDED") {
+      return <Badge variant="secondary">REFUNDED</Badge>;
     }
 
-    if (normalized === "HALF_PAID" || normalized.includes("HALF")) {
-      return "HALF_PAID";
+    // Fallback for any unexpected values
+    return <Badge variant="outline">{status || "Unknown"}</Badge>;
+  };
+
+  const getPaymentTypeBadge = (type: string) => {
+    if (type === "HALF") {
+      return <Badge className="bg-blue-500">HALF</Badge>;
     }
 
-    if (normalized === "REFUNDED" || normalized.includes("REFUND")) {
-      return "REFUNDED";
+    if (type === "FULL") {
+      return <Badge className="bg-slate-500">FULL</Badge>;
     }
 
-    if (normalized === "PENDING") {
-      return "PENDING";
-    }
-
-    return "PENDING"; // Default to PENDING
+    // Fallback for any unexpected values
+    return <Badge variant="outline">{type || "FULL"}</Badge>;
   };
 
   const getStatusBadge = (status: string) => {
@@ -348,49 +330,15 @@ export default function AdminBookings() {
       case "COMPLETED":
         return <Badge className="bg-green-500">Completed</Badge>;
       case "PENDING":
-        return <Badge>Scheduled</Badge>;
+        return <Badge variant="outline">Pending</Badge>;
+      case "SCHEDULED":
+        return <Badge className="bg-blue-500">Scheduled</Badge>;
       case "IN_PROGRESS":
         return <Badge className="bg-yellow-500">In Progress</Badge>;
       case "CANCELLED":
         return <Badge variant="destructive">Cancelled</Badge>;
       default:
         return <Badge variant="outline">{status}</Badge>;
-    }
-  };
-
-  const getPaymentStatusBadge = (status: string, paymentType: string) => {
-    // Normalize values to handle case sensitivity
-    const normalizedStatus = status?.toUpperCase() || '';
-    const normalizedPaymentType = paymentType?.toUpperCase() || '';
-
-    console.log("Badge for payment status:", normalizedStatus, "with type:", normalizedPaymentType);
-
-    // Check for explicit HALF_PAID status first
-    if (normalizedStatus === "HALF_PAID") {
-      return <Badge className="bg-blue-500">Half Paid</Badge>;
-    }
-
-    // For backward compatibility - check for PAID + HALF
-    if ((normalizedStatus === "SUCCESS" || normalizedStatus === "PAID") && normalizedPaymentType === "HALF") {
-      return <Badge className="bg-blue-500">Half Paid</Badge>;
-    }
-
-    // Handle other standard statuses
-    switch (normalizedStatus) {
-      case "PAID":
-      case "SUCCESS":
-        return <Badge className="bg-green-500">Fully Paid</Badge>;
-
-      case "REFUNDED":
-        return <Badge variant="secondary">Refunded</Badge>;
-
-      case "PENDING":
-        return <Badge variant="outline">Pending</Badge>;
-
-      default:
-        // If we have an unknown status, log it and show it as is
-        console.warn("Unknown payment status:", status);
-        return <Badge variant="outline">{status || "Unknown"}</Badge>;
     }
   };
 
@@ -416,22 +364,8 @@ export default function AdminBookings() {
         notes: bookingToEdit.notes,
         status: bookingToEdit.status,
         employeeId: bookingToEdit.employee?.id || null,
+        paymentStatus: bookingToEdit.paymentStatus,
       };
-
-      // Handle payment status logic
-      if (bookingToEdit.paymentStatus === "HALF_PAID") {
-        // For half paid, we save PAID status with HALF type
-        updateData.paymentStatus = "PAID";
-        updateData.paymentType = "HALF";
-      } else {
-        // For other statuses, use as is
-        updateData.paymentStatus = bookingToEdit.paymentStatus;
-
-        // If we're setting to PAID and type is HALF, keep the HALF type
-        if (bookingToEdit.paymentStatus === "PAID" && bookingToEdit.paymentType === "HALF") {
-          updateData.paymentType = "HALF";
-        }
-      }
 
       // Make the update call
       const updatedBooking = await updateAppointment(bookingToEdit.id, updateData);
@@ -442,21 +376,6 @@ export default function AdminBookings() {
       const refreshedBookings = await getBookings();
       if (refreshedBookings && Array.isArray(refreshedBookings)) {
         const transformedBookings = refreshedBookings.map((booking) => {
-          // Log the transformation of each booking to debug
-          console.log(`Transforming booking ${booking.id}:`, {
-            originalStatus: booking.paymentStatus,
-            originalType: booking.paymentType
-          });
-
-          // Determine the correct payment status based on both status and type
-          let paymentStatus = booking.paymentStatus || "PENDING";
-
-          // If payment type is HALF and status is PAID/SUCCESS, use HALF_PAID
-          if ((paymentStatus === "PAID" || paymentStatus === "SUCCESS") &&
-            booking.paymentType === "HALF") {
-            paymentStatus = "HALF_PAID";
-          }
-
           return {
             id: booking.id,
             service: {
@@ -478,8 +397,8 @@ export default function AdminBookings() {
             timeSlot: booking.timeSlot,
             notes: booking.notes,
             status: booking.status,
-            // Use the determined payment status
-            paymentStatus: paymentStatus,
+            // Use the raw payment status from DB
+            paymentStatus: booking.paymentStatus || "PAID",
             paymentMethod: booking.paymentMethod,
             paymentType: booking.paymentType || "FULL",
             updatedAt: booking.updatedAt,
@@ -497,20 +416,11 @@ export default function AdminBookings() {
         setBookings((prevBookings) =>
           prevBookings.map((booking) => {
             if (booking.id === updatedBooking.id) {
-              // Determine correct payment status for the updated booking
-              let paymentStatus = updatedBooking.paymentStatus || "PENDING";
-
-              // If payment type is HALF and status is PAID/SUCCESS, use HALF_PAID
-              if ((paymentStatus === "PAID" || paymentStatus === "SUCCESS") &&
-                updatedBooking.paymentType === "HALF") {
-                paymentStatus = "HALF_PAID";
-              }
-
               return {
                 ...booking,
                 ...updatedBooking,
-                // Use the determined payment status
-                paymentStatus: paymentStatus,
+                paymentStatus: updatedBooking.paymentStatus || "PAID",
+                paymentType: updatedBooking.paymentType || "FULL",
                 timeSlot: updatedBooking.timeSlot,
                 employee: updatedBooking.employee
                   ? {
@@ -598,18 +508,17 @@ export default function AdminBookings() {
     );
   };
 
+  // Create content based on loading/error state
+  let content;
+
   if (loading) {
-    return (
-      <DashboardLayout userRole="admin">
+    content = (
         <div className="flex items-center justify-center h-screen">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900"></div>
         </div>
-      </DashboardLayout>
     );
-  }
-
-  return (
-    <DashboardLayout userRole="admin">
+  } else {
+    content = (
       <div className="container mx-auto p-6">
         <div className="flex justify-between items-center mb-6">
           <div>
@@ -685,12 +594,7 @@ export default function AdminBookings() {
           </Select>
         </div>
 
-        {loading ? (
-          <div className="flex justify-center items-center py-12">
-            <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-primary"></div>
-            <span className="ml-3">Loading bookings...</span>
-          </div>
-        ) : error ? (
+        {error ? (
           <Card className="bg-red-50">
             <CardContent className="pt-6">
               <div className="flex items-center gap-2 text-red-600">
@@ -710,25 +614,6 @@ export default function AdminBookings() {
                     ? "Try clearing your filters or search query"
                     : "No bookings have been made yet."}
                 </p>
-
-                {/* Debug information card - helpful for troubleshooting */}
-                {/* {debugInfo && (
-                  <div className="mt-6 text-left border p-4 rounded-md">
-                    <h4 className="font-semibold mb-2">Debug Information</h4>
-                    <p>Raw bookings count: {debugInfo.bookingsCount}</p>
-                    <p>Filtered bookings count: {sortedBookings.length}</p>
-                    <p>Search query: {searchQuery || "None"}</p>
-                    <p>Service filter: {filterService}</p>
-                    <p>Status filter: {filterStatus}</p>
-
-                    <details className="mt-4">
-                      <summary className="cursor-pointer text-primary">Show/Hide Raw Booking Data</summary>
-                      <pre className="mt-2 bg-gray-100 p-2 rounded text-xs overflow-auto max-h-[300px]">
-                        {JSON.stringify(debugInfo.rawBookings, null, 2)}
-                      </pre>
-                    </details>
-                  </div>
-                )} */}
               </div>
             </CardContent>
           </Card>
@@ -749,7 +634,8 @@ export default function AdminBookings() {
                         <TableHead>Date & Time</TableHead>
                         <TableHead>Employee</TableHead>
                         <TableHead>Status</TableHead>
-                        <TableHead>Payment</TableHead>
+                        <TableHead>Payment Status</TableHead>
+                        <TableHead>Payment Type</TableHead>
                         <TableHead className="text-right">Actions</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -785,14 +671,10 @@ export default function AdminBookings() {
                             {getStatusBadge(booking.status)}
                           </TableCell>
                           <TableCell>
-                            {/* Debug payment status values */}
-                            {(() => {
-                              console.log(`Payment badge for booking ${booking.id}:`, {
-                                status: booking.paymentStatus,
-                                type: booking.paymentType
-                              });
-                              return getPaymentStatusBadge(booking.paymentStatus, booking.paymentType);
-                            })()}
+                            {getPaymentStatusBadge(booking.paymentStatus)}
+                          </TableCell>
+                          <TableCell>
+                            {getPaymentTypeBadge(booking.paymentType)}
                           </TableCell>
                           <TableCell className="text-right">
                             <div className="flex justify-end gap-2">
@@ -905,11 +787,15 @@ export default function AdminBookings() {
                             {typeof selectedBooking?.price === "number"
                               ? selectedBooking.price.toFixed(2)
                               : "0.00"}
-                            {selectedBooking.paymentType === "HALF" && " (50% Advance)"}
                           </div>
                           <div className="text-sm">
-                            <span className="font-medium">Status:</span>{" "}
-                            {getPaymentStatusBadge(selectedBooking.paymentStatus, selectedBooking.paymentType)}
+                            <span className="font-medium">Payment Status:</span>{" "}
+                            {getPaymentStatusBadge(selectedBooking.paymentStatus)}
+                          </div>
+                          <div className="text-sm">
+                            <span className="font-medium">Payment Type:</span>{" "}
+                            {getPaymentTypeBadge(selectedBooking.paymentType)}
+                            {selectedBooking.paymentType === "HALF" && " (50% Advance)"}
                           </div>
                           <div className="text-sm">
                             <span className="font-medium">Method:</span>{" "}
@@ -995,7 +881,7 @@ export default function AdminBookings() {
                   <DialogHeader>
                     <DialogTitle>Edit Booking</DialogTitle>
                     <DialogDescription>
-                      Update booking #{bookingToEdit.id} details
+                      Update booking #{bookingToEdit?.id} details
                     </DialogDescription>
                   </DialogHeader>
                   <div className="grid gap-4 py-4">
@@ -1162,26 +1048,33 @@ export default function AdminBookings() {
 
                       <TabsContent value="status" className="space-y-4 mt-4">
                         <div className="grid gap-2">
-                          <Label htmlFor="edit-status">Booking Status</Label>
+                          <Label htmlFor="edit-booking-status">
+                            Booking Status
+                          </Label>
                           <Select
                             value={bookingToEdit.status}
                             onValueChange={(status) => {
-                              console.log("Selected booking status:", status);
-                              setBookingToEdit(prev =>
-                                prev ? { ...prev, status } : null
-                              );
+                              setBookingToEdit(prev => {
+                                if (!prev) return null;
+                                return {
+                                  ...prev,
+                                  status
+                                };
+                              });
                             }}
                           >
-                            <SelectTrigger id="edit-status" className="w-full">
-                              <SelectValue placeholder="Select status" />
+                            <SelectTrigger
+                              id="edit-booking-status"
+                              className="w-full"
+                            >
+                              <SelectValue placeholder="Select booking status" />
                             </SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="PENDING">Scheduled</SelectItem>
-                              <SelectItem value="IN_PROGRESS">
-                                In Progress
-                              </SelectItem>
-                              <SelectItem value="COMPLETED">Completed</SelectItem>
-                              <SelectItem value="CANCELLED">Cancelled</SelectItem>
+                              <SelectItem value="PENDING">PENDING</SelectItem>
+                              <SelectItem value="SCHEDULED">SCHEDULED</SelectItem>
+                              <SelectItem value="IN_PROGRESS">IN PROGRESS</SelectItem>
+                              <SelectItem value="COMPLETED">COMPLETED</SelectItem>
+                              <SelectItem value="CANCELLED">CANCELLED</SelectItem>
                             </SelectContent>
                           </Select>
                         </div>
@@ -1205,22 +1098,6 @@ export default function AdminBookings() {
                                   to: paymentStatus
                                 });
 
-                                // If changing to Half Paid, ensure paymentType is updated if needed
-                                if (paymentStatus === "HALF_PAID" && prev.paymentType !== "HALF") {
-                                  console.log("Auto-updating payment type to HALF");
-                                  return {
-                                    ...prev,
-                                    paymentStatus,
-                                    paymentType: "HALF"
-                                  };
-                                } else if (paymentStatus === "PAID" && prev.paymentType === "HALF") {
-                                  // Keep the HALF payment type but update status
-                                  return {
-                                    ...prev,
-                                    paymentStatus
-                                  };
-                                }
-
                                 return {
                                   ...prev,
                                   paymentStatus
@@ -1235,38 +1112,8 @@ export default function AdminBookings() {
                               <SelectValue placeholder="Select payment status" />
                             </SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="PAID">Fully Paid</SelectItem>
-                              <SelectItem value="HALF_PAID">Half Paid</SelectItem>
-                              <SelectItem value="PENDING">Pending</SelectItem>
-                              <SelectItem value="REFUNDED">Refunded</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-
-                        <div className="grid gap-2">
-                          <Label htmlFor="edit-payment-type">
-                            Payment Type (Read Only)
-                          </Label>
-                          <Select
-                            value={bookingToEdit.paymentType}
-                            onValueChange={(paymentType) => {
-                              console.log("Payment type should not be changed");
-                              // Commented out to prevent changes
-                              // setBookingToEdit(prev =>
-                              //   prev ? { ...prev, paymentType } : null
-                              // );
-                            }}
-                            disabled={true}
-                          >
-                            <SelectTrigger
-                              id="edit-payment-type"
-                              className="w-full"
-                            >
-                              <SelectValue placeholder="Select payment type" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="FULL">Full Payment</SelectItem>
-                              <SelectItem value="HALF">Half Payment (Advance)</SelectItem>
+                              <SelectItem value="PAID">PAID</SelectItem>
+                              <SelectItem value="REFUNDED">REFUNDED</SelectItem>
                             </SelectContent>
                           </Select>
                         </div>
@@ -1298,6 +1145,9 @@ export default function AdminBookings() {
           </div>
         )}
       </div>
-    </DashboardLayout>
   );
+  }
+
+  // Use only one DashboardLayout wrapper
+  return <DashboardLayout userRole="admin">{content}</DashboardLayout>;
 }

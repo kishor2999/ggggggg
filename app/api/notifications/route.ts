@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { pusherServer } from '@/lib/pusher';
+import { pusherServer, getUserChannel, EVENT_TYPES } from '@/lib/pusher';
 import prisma from '@/lib/db';
 
 // POST /api/notifications - Create and send a notification
@@ -26,13 +26,14 @@ export async function POST(req: Request) {
       }
     });
     
-    // Trigger Pusher event
-    await pusherServer.trigger(`user-${userId}`, 'new-notification', {
+    // Trigger Pusher event using standardized channel naming
+    await pusherServer.trigger(getUserChannel(userId), EVENT_TYPES.NEW_NOTIFICATION, {
       id: notification.id,
       title: notification.title,
       message: notification.message,
       type: notification.type,
-      createdAt: notification.createdAt
+      createdAt: notification.createdAt,
+      isRead: notification.isRead
     });
     
     return NextResponse.json(notification);
@@ -58,10 +59,33 @@ export async function GET(req: Request) {
       );
     }
     
-    const notifications = await prisma.notification.findMany({
+    // First try to find notifications using the provided ID directly
+    let notifications = await prisma.notification.findMany({
       where: { userId },
       orderBy: { createdAt: 'desc' }
     });
+    
+    // If no notifications found and the ID looks like a Clerk ID (starts with "user_")
+    if (notifications.length === 0 && userId.startsWith('user_')) {
+      console.log(`No notifications found for direct ID. Trying to find user with clerkId: ${userId}`);
+      
+      // Look up the internal user ID from the clerk ID
+      const user = await prisma.user.findFirst({
+        where: { clerkId: userId }
+      });
+      
+      if (user) {
+        console.log(`Found user with internal ID ${user.id} for clerkId ${userId}`);
+        
+        // Get notifications for the internal user ID
+        notifications = await prisma.notification.findMany({
+          where: { userId: user.id },
+          orderBy: { createdAt: 'desc' }
+        });
+        
+        console.log(`Found ${notifications.length} notifications for internal user ID ${user.id}`);
+      }
+    }
     
     return NextResponse.json(notifications);
   } catch (error) {

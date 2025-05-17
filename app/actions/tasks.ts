@@ -80,7 +80,7 @@ export async function getEmployeeTasks(userId: string) {
         customer: {
           name: appointment.user.name,
           email: appointment.user.email,
-          phone: appointment.user.phone || "",
+          phone: appointment.user.phoneNumber || "",
           notes: appointment.notes || "",
           rating: 0,
         },

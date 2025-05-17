@@ -1,7 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { updateAppointment } from "@/app/actions/appointments";
+import fetchUserAppointments from "@/app/actions/fetch-user-appointments";
 import { DashboardLayout } from "@/components/dashboard-layout";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
@@ -9,17 +12,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Button } from "@/components/ui/button";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
 import {
   Dialog,
   DialogContent,
@@ -31,97 +23,52 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { getUrlParam } from "@/lib/navigation-utils";
+import { format } from "date-fns";
+import {
   Calendar,
   Car,
   Clock,
-  Download,
   FileText,
-  Filter,
   Pencil,
   Search,
-  X,
+  X
 } from "lucide-react";
-import { format } from "date-fns";
-import fetchUserAppointments from "@/app/actions/fetch-user-appointments";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
-// Sample booking data
 
-// const bookings = [
-//   {
-//     id: "B001",
-//     service: "Deluxe Wash",
-//     vehicle: "Tesla Model 3",
-//     date: new Date(2023, 4, 15, 14, 30),
-//     status: "completed",
-//     price: 69.99,
-//     employee: "Mike Johnson",
-//     location: "Downtown Branch",
-//     notes: "Customer requested extra attention to wheels",
-//     receipt: "INV-2023-05-15-001",
-//   },
-//   {
-//     id: "B002",
-//     service: "Interior Clean",
-//     vehicle: "Tesla Model 3",
-//     date: new Date(2023, 3, 28, 10, 0),
-//     status: "completed",
-//     price: 39.99,
-//     employee: "Lisa Smith",
-//     location: "Downtown Branch",
-//     notes: "",
-//     receipt: "INV-2023-04-28-003",
-//   },
-//   {
-//     id: "B003",
-//     service: "Premium Wash",
-//     vehicle: "Honda Accord",
-//     date: new Date(2023, 3, 10, 15, 30),
-//     status: "completed",
-//     price: 49.99,
-//     employee: "John Miller",
-//     location: "Westside Branch",
-//     notes: "",
-//     receipt: "INV-2023-04-10-007",
-//   },
-//   {
-//     id: "B004",
-//     service: "Full Detail",
-//     vehicle: "Tesla Model 3",
-//     date: new Date(2023, 5, 5, 13, 0),
-//     status: "scheduled",
-//     price: 129.99,
-//     employee: "Lisa Smith",
-//     location: "Downtown Branch",
-//     notes: "New car preparation",
-//     receipt: "",
-//   },
-//   {
-//     id: "B005",
-//     service: "Basic Wash",
-//     vehicle: "Honda Accord",
-//     date: new Date(2023, 5, 12, 11, 30),
-//     status: "scheduled",
-//     price: 24.99,
-//     employee: "To be assigned",
-//     location: "Westside Branch",
-//     notes: "",
-//     receipt: "",
-//   },
-// ]
 
 export default function BookingHistory() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedBooking, setSelectedBooking] = useState<any>(null);
   const [bookings, setBookings] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [cancelLoading, setCancelLoading] = useState(false);
+  const [isMounted, setIsMounted] = useState(false);
+
+  // Ensure we're in the client before doing anything
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   useEffect(() => {
-    const fetchBookings = async () => {
+    // Only run this effect on the client
+    if (!isMounted) return;
+    
+    const fetchData = async () => {
       try {
         setLoading(true);
         const appointments = await fetchUserAppointments();
-        console.log("Bookings loaded:", appointments.map(app => ({
+        console.log("Bookings loaded:", appointments.map((app: any) => ({
           id: app.id,
           status: app.status,
           paymentStatus: app.paymentStatus,
@@ -136,30 +83,38 @@ export default function BookingHistory() {
       }
     };
 
-    fetchBookings();
+    fetchData();
 
-    // Check for payment_success URL parameter
-    const params = new URLSearchParams(window.location.search);
-    const paymentSuccess = params.get('payment_success');
+    // Handle payment_success URL parameter - safely
+    if (typeof window !== 'undefined') {
+      try {
+        const paymentSuccess = getUrlParam('payment_success') === 'true';
+        
+        if (paymentSuccess) {
+          console.log("Payment success detected in URL");
+          
+          // Show success toast
+          toast.success("Payment completed successfully!", {
+            description: "Your booking has been confirmed.",
+            duration: 5000,
+          });
 
-    if (paymentSuccess === 'true') {
-      toast.success("Payment completed successfully!", {
-        description: "Your booking has been confirmed.",
-        duration: 5000,
-      });
-
-      // Clear the URL parameter after showing the notification
-      const newUrl = window.location.pathname;
-      window.history.replaceState({}, document.title, newUrl);
+          // Clear the URL parameter after showing the notification
+          const newUrl = window.location.pathname;
+          window.history.replaceState({}, document.title, newUrl);
+        }
+      } catch (error) {
+        console.error("Error handling URL parameters:", error);
+      }
     }
-  }, []);
+  }, [isMounted]);
 
   const upcomingBookings = bookings
     .filter((booking) => {
       const bookingDate = new Date(booking.date);
       const now = new Date();
-      // Only show PENDING bookings that are in the future
-      return booking.status === "PENDING" && bookingDate > now;
+      // Include both PENDING and SCHEDULED bookings in the future
+      return (booking.status === "PENDING" || booking.status === "SCHEDULED") && bookingDate > now;
     })
     .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
@@ -167,10 +122,10 @@ export default function BookingHistory() {
     .filter((booking) => {
       const bookingDate = new Date(booking.date);
       const now = new Date();
-      // Show COMPLETED bookings or PENDING bookings that are in the past
+      // Show COMPLETED bookings or past PENDING/SCHEDULED bookings
       return (
         booking.status === "COMPLETED" ||
-        (booking.status === "PENDING" && bookingDate <= now)
+        ((booking.status === "PENDING" || booking.status === "SCHEDULED") && bookingDate <= now)
       );
     })
     .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
@@ -191,12 +146,41 @@ export default function BookingHistory() {
     setSelectedBooking(booking);
   };
 
+  const handleCancelBooking = async (bookingId: string) => {
+    try {
+      setCancelLoading(true);
+      
+      await updateAppointment(bookingId, {
+        status: "CANCELLED"
+      });
+      
+      toast.success("Booking cancelled successfully");
+      
+      setBookings(prevBookings => 
+        prevBookings.map(booking => 
+          booking.id === bookingId 
+            ? { ...booking, status: "CANCELLED" } 
+            : booking
+        )
+      );
+      
+      setSelectedBooking(null);
+    } catch (error) {
+      console.error("Error cancelling booking:", error);
+      toast.error("Failed to cancel booking. Please try again.");
+    } finally {
+      setCancelLoading(false);
+    }
+  };
+
   const getStatusBadge = (status: string) => {
     switch (status) {
       case "COMPLETED":
         return <Badge className="bg-green-500">Completed</Badge>;
       case "PENDING":
-        return <Badge>Scheduled</Badge>;
+        return <Badge>Pending</Badge>;
+      case "SCHEDULED":
+        return <Badge className="bg-blue-500">Scheduled</Badge>;
       case "CANCELLED":
         return <Badge variant="destructive">Cancelled</Badge>;
       default:
@@ -207,6 +191,9 @@ export default function BookingHistory() {
   const getPaymentStatusBadge = (status: string, paymentType: string) => {
     // Add debugging
     console.log("Payment status badge:", { status, paymentType });
+
+    // Handle null or undefined values
+    if (!status) return <Badge variant="outline">Unknown</Badge>;
 
     // Normalize the values to handle case sensitivity issues
     const normalizedStatus = status?.toUpperCase() || '';
@@ -219,33 +206,61 @@ export default function BookingHistory() {
       return <Badge className="bg-green-500">Fully Paid</Badge>;
     }
 
-    switch (normalizedStatus) {
-      case "HALF_PAID":
-        return <Badge className="bg-yellow-500">Half Paid</Badge>;
-      case "PENDING":
+    if (normalizedStatus === "PENDING") {
         return <Badge variant="outline">Pending</Badge>;
-      case "FAILED":
-        return <Badge variant="destructive">Failed</Badge>;
-      default:
-        return <Badge variant="outline">{status}</Badge>;
     }
+    
+    if (normalizedStatus === "FAILED") {
+        return <Badge variant="destructive">Failed</Badge>;
+    }
+    
+    // Default case
+        return <Badge variant="outline">{status}</Badge>;
   };
 
+  // Create content based on state
+  let content;
+  
   if (loading) {
-    return (
-      <DashboardLayout userRole="user">
+    content = (
         <div className="flex items-center justify-center h-[50vh]">
           <div className="text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
             <p className="mt-4 text-muted-foreground">Loading bookings...</p>
           </div>
         </div>
-      </DashboardLayout>
     );
-  }
-
-  return (
-    <DashboardLayout userRole="user">
+  } else if (!bookings.length && !loading) {
+    content = (
+      <div className="flex flex-col gap-4">
+        <div className="flex items-center justify-between">
+          <h1 className="text-3xl font-bold tracking-tight">My Bookings</h1>
+          <Button asChild>
+            <a href="/dashboard/user/book">
+              <Calendar className="mr-2 h-4 w-4" />
+              Book New Service
+            </a>
+          </Button>
+        </div>
+        
+        <div className="text-center py-8">
+          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-muted">
+            <Calendar className="h-6 w-6 text-muted-foreground" />
+          </div>
+          <h3 className="mt-4 text-lg font-semibold">
+            No bookings found
+          </h3>
+          <p className="mt-2 text-sm text-muted-foreground">
+            You don't have any car wash appointments yet.
+          </p>
+          <Button className="mt-4" asChild>
+            <a href="/dashboard/user/book">Book a Service</a>
+          </Button>
+        </div>
+      </div>
+    );
+  } else {
+    content = (
       <div className="flex flex-col gap-4">
         <div className="flex items-center justify-between">
           <h1 className="text-3xl font-bold tracking-tight">My Bookings</h1>
@@ -451,14 +466,14 @@ export default function BookingHistory() {
             open={!!selectedBooking}
             onOpenChange={() => setSelectedBooking(null)}
           >
-            <DialogContent className="sm:max-w-[500px]">
+            <DialogContent className="sm:max-w-[500px] max-h-[85vh] flex flex-col">
               <DialogHeader>
                 <DialogTitle>Booking Details</DialogTitle>
                 <DialogDescription>
                   Booking #{selectedBooking.id}
                 </DialogDescription>
               </DialogHeader>
-              <div className="grid gap-4 py-4">
+              <div className="grid gap-4 py-4 overflow-y-auto pr-1">
                 <div className="grid grid-cols-4 items-center gap-4">
                   <Label className="text-right">Service</Label>
                   <div className="col-span-3 font-medium">
@@ -499,7 +514,7 @@ export default function BookingHistory() {
                 <div className="grid grid-cols-4 items-center gap-4">
                   <Label className="text-right">Price</Label>
                   <div className="col-span-3">
-                    Rs{Number(selectedBooking.price).toFixed(2)}
+                    Rs{selectedBooking.price}
                   </div>
                 </div>
                 {selectedBooking.notes && (
@@ -508,18 +523,38 @@ export default function BookingHistory() {
                     <div className="col-span-3">{selectedBooking.notes}</div>
                   </div>
                 )}
+                
+                <div className="mt-4 border-t pt-4">
+                  <div className="bg-blue-50 p-3 rounded-md">
+                    <p className="text-sm font-medium text-blue-800">Contact Information:</p>
+                    <p className="text-sm text-blue-700 mt-1">
+                      To reschedule or cancel your booking, please contact our customer service at: <span className="font-bold">9876543210</span>
+                    </p>
+                  </div>
+                </div>
               </div>
-              <DialogFooter>
-                {selectedBooking.status === "PENDING" && (
+              <DialogFooter className="flex-col items-stretch gap-2 sm:flex-row sm:items-center border-t pt-4 mt-auto">
+                {(selectedBooking.status === "PENDING" || selectedBooking.status === "SCHEDULED") && (
                   <>
-                    <Button variant="outline" className="sm:w-auto w-full">
-                      <Pencil className="mr-2 h-4 w-4" />
-                      Reschedule
-                    </Button>
-                    <Button variant="destructive" className="sm:w-auto w-full">
+                    <Button 
+                      variant="destructive" 
+                      className="sm:w-auto w-full"
+                      onClick={() => handleCancelBooking(selectedBooking.id)}
+                      disabled={cancelLoading}
+                    >
+                      {cancelLoading ? (
+                        <>
+                          <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                          Cancelling...
+                        </>
+                      ) : (
+                        <>
                       <X className="mr-2 h-4 w-4" />
                       Cancel Booking
+                        </>
+                      )}
                     </Button>
+                   
                   </>
                 )}
                 {selectedBooking.status === "COMPLETED" && (
@@ -533,6 +568,9 @@ export default function BookingHistory() {
           </Dialog>
         )}
       </div>
-    </DashboardLayout>
-  );
+    );
+  }
+
+  // Always return the same component structure
+  return <DashboardLayout userRole="user">{isMounted ? content : null}</DashboardLayout>;
 }

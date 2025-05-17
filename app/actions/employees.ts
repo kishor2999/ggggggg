@@ -2,29 +2,23 @@
 import prisma from "@/lib/db"
 
 export type EmployeeWithUser = {
-  id: string
-  role: string
-  averageRating: number
-  totalReviews: number
-  createdAt: Date
-  updatedAt: Date
+  id: string;
+  role: string;
+  createdAt: Date;
+  updatedAt: Date;
+  // UI-specific fields
+  status?: string;
+  location?: string;
+  schedule?: string;
+  skills?: string[];
+  notes?: string;
   user: {
-    id: string
-    name: string
-    email: string
-    phoneNumber: string | null
-    profileImage: string | null
+    id: string;
+    name: string;
+    email: string;
+    phoneNumber: string | null;
+    profileImage: string | null;
   }
-  reviews?: {
-    id: string
-    rating: number
-    comment: string | null
-    createdAt: Date
-    user: {
-      name: string
-      profileImage: string | null
-    }
-  }[]
 }
 
 export async function getEmployees() {
@@ -38,23 +32,6 @@ export async function getEmployees() {
             email: true,
             phoneNumber: true,
             profileImage: true,
-          },
-        },
-        reviews: {
-          select: {
-            id: true,
-            rating: true,
-            comment: true,
-            createdAt: true,
-            user: {
-              select: {
-                name: true,
-                profileImage: true,
-              },
-            },
-          },
-          orderBy: {
-            createdAt: "desc",
           },
         },
       },
@@ -103,23 +80,6 @@ export async function getEmployeeById(id: string) {
             profileImage: true,
           },
         },
-        reviews: {
-          select: {
-            id: true,
-            rating: true,
-            comment: true,
-            createdAt: true,
-            user: {
-              select: {
-                name: true,
-                profileImage: true,
-              },
-            },
-          },
-          orderBy: {
-            createdAt: "desc",
-          },
-        },
         appointments: {
           include: {
             service: true,
@@ -144,56 +104,7 @@ export async function getEmployeeById(id: string) {
   }
 }
 
-export async function createEmployeeReview(employeeId: string, userId: string, rating: number, comment?: string) {
-  try {
-    // Create the review
-    const review = await prisma.employeeReview.create({
-      data: {
-        employeeId,
-        userId,
-        rating,
-        comment,
-      },
-      include: {
-        user: {
-          select: {
-            name: true,
-            profileImage: true,
-          },
-        },
-      },
-    })
 
-    // Update employee's average rating and total reviews
-    const employee = await prisma.employee.findUnique({
-      where: { id: employeeId },
-      include: {
-        reviews: true,
-      },
-    })
-
-    if (!employee) {
-      throw new Error("Employee member not found")
-    }
-
-    const totalRating = employee.reviews.reduce((sum, review) => sum + review.rating, 0) + rating
-    const newTotalReviews = employee.reviews.length + 1
-    const newAverageRating = totalRating / newTotalReviews
-
-    await prisma.employee.update({
-      where: { id: employeeId },
-      data: {
-        averageRating: newAverageRating,
-        totalReviews: newTotalReviews,
-      },
-    })
-
-    return review
-  } catch (error) {
-    console.error("Error creating employee review:", error)
-    throw new Error("Failed to create employee review")
-  }
-}
 
 export async function getEmployeeTasks(userId: string) {
   try {
@@ -237,17 +148,6 @@ export async function getEmployeePerformance(userId: string) {
     // First get the employee record for this user
     const employee = await prisma.employee.findFirst({
       where: { userId },
-      include: {
-        reviews: {
-          include: {
-            user: true,
-          },
-          orderBy: {
-            createdAt: 'desc',
-          },
-          take: 5,
-        },
-      },
     });
 
     if (!employee) {

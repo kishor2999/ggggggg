@@ -12,11 +12,7 @@ export async function GET() {
       include: {
         user: true,
         service: true,
-        staff: {
-          include: {
-            user: true,
-          },
-        },
+                employee: {          include: {            user: true,          },        },
       },
     });
 
@@ -43,7 +39,7 @@ export async function GET() {
         customer: appointment.user.name,
         service: appointment.service.name,
         dateTime: formattedDate,
-        employee: appointment.staff?.user.name || null,
+        employee: appointment.employee?.user.name || null,
         status: statusMap[appointment.status] || appointment.status,
         amount: Number(appointment.price),
       };

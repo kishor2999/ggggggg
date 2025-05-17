@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/db";
 import { verifySignature, checkTransactionStatus, ESEWA_CONFIG } from "@/lib/esewa-utils";
-import { pusherServer } from "@/lib/pusher";
+import { pusherServer, getUserChannel, getAdminChannel, EVENT_TYPES } from "@/lib/pusher";
 
 export async function GET(request: Request) {
   try {
@@ -90,47 +90,100 @@ export async function GET(request: Request) {
         data: {
           userId: order.userId,
           title: 'Payment Successful',
-          message: `Your payment of Rs${order.totalAmount} for the order has been received.`,
+          message: `Your payment of Rs${order.totalAmount} for the order has been received. Your order is being processed.`,
           type: 'PAYMENT',
           isRead: false
         }
       });
 
-      // Send real-time notification to the user
-      await pusherServer.trigger(`user-${order.userId}`, 'new-notification', {
+      // Get the user record to check for clerkId
+      const orderUser = await prisma.user.findUnique({
+        where: { id: order.userId },
+        select: { clerkId: true, name: true }
+      });
+
+      // Notification data to be sent
+      const notificationData = {
         id: userNotification.id,
         title: userNotification.title,
         message: userNotification.message,
         type: userNotification.type,
-        createdAt: userNotification.createdAt
-      });
+        createdAt: userNotification.createdAt,
+        isRead: false
+      };
+
+      console.log(`Sending notification to user with DB ID: ${order.userId}`);
       
+      // Send real-time notification to the user
+      await pusherServer.trigger(getUserChannel(order.userId), EVENT_TYPES.NEW_NOTIFICATION, notificationData);
+
+      // Send to Clerk user ID channel if available
+      if (orderUser?.clerkId) {
+        console.log(`Also sending notification to Clerk ID: ${orderUser.clerkId}`);
+        await pusherServer.trigger(getUserChannel(orderUser.clerkId), EVENT_TYPES.NEW_NOTIFICATION, notificationData);
+      }
+
       // Get admin users to notify them
       const adminUsers = await prisma.user.findMany({
-        where: { role: 'ADMIN' }
+        where: { 
+          role: { 
+            equals: 'ADMIN', 
+            mode: 'insensitive' 
+          } 
+        }
       });
+
+      console.log(`Found ${adminUsers.length} admin users to notify about new order payment`);
 
       // Create notification for all admins
       for (const admin of adminUsers) {
+        // Create more detailed message for admins
+        const orderItems = await prisma.orderItem.findMany({
+          where: { orderId: order.id },
+          include: { product: true }
+        });
+        
+        const itemCount = orderItems.reduce((sum, item) => sum + item.quantity, 0);
+        const customerName = orderUser?.name || "A customer";
+        
         const adminNotification = await prisma.notification.create({
           data: {
             userId: admin.id,
             title: 'New Order Payment',
-            message: `Order #${order.id.substring(0, 8)} payment of Rs${order.totalAmount} has been received.`,
+            message: `${customerName} has paid Rs${order.totalAmount} for ${itemCount} item(s). Order #${order.id.substring(0, 8)}.`,
             type: 'PAYMENT',
             isRead: false
           }
         });
 
-        // Send real-time notification to each admin
-        await pusherServer.trigger(`user-${admin.id}`, 'new-notification', {
+        // Admin notification data
+        const adminNotificationData = {
           id: adminNotification.id,
           title: adminNotification.title,
           message: adminNotification.message,
           type: adminNotification.type,
-          createdAt: adminNotification.createdAt
-        });
+          createdAt: adminNotification.createdAt,
+          isRead: false
+        };
+
+        console.log(`Sending notification to admin: ${admin.id}`);
+        
+        // Send real-time notification to each admin's DB ID channel
+        await pusherServer.trigger(getUserChannel(admin.id), EVENT_TYPES.NEW_NOTIFICATION, adminNotificationData);
+        
+        // Also send to admin's Clerk ID if available
+        if (admin.clerkId) {
+          console.log(`Also sending notification to admin's Clerk ID: ${admin.clerkId}`);
+          await pusherServer.trigger(getUserChannel(admin.clerkId), EVENT_TYPES.NEW_NOTIFICATION, adminNotificationData);
+        }
       }
+      
+      // Also trigger a general admin channel notification
+      await pusherServer.trigger(getAdminChannel(), EVENT_TYPES.NEW_NOTIFICATION, {
+        message: `New order payment received: Rs${order.totalAmount}`,
+        orderId: order.id,
+        timestamp: new Date().toISOString()
+      });
       
       console.log("E-commerce payment successful - redirecting to success page");
       return NextResponse.redirect(`${url.origin}/dashboard/user/orders/success?order_id=${order.id}&clear_cart=true`);
@@ -183,50 +236,111 @@ export async function GET(request: Request) {
         data: {
           userId: appointment.userId,
           title: 'Payment Successful',
-          message: `Your payment of Rs${appointment.price} for the ${appointment.service.name} booking has been received.`,
+          message: `Your payment of Rs${appointment.price} for the ${appointment.service.name} booking has been received. We look forward to serving you!`,
           type: 'PAYMENT',
           isRead: false
         }
       });
 
-      // Send real-time notification to the user
-      await pusherServer.trigger(`user-${appointment.userId}`, 'new-notification', {
+      // Get the user record to check for clerkId
+      const user = await prisma.user.findUnique({
+        where: { id: appointment.userId },
+        select: { clerkId: true, name: true }
+      });
+
+      // Notification data to be sent
+      const notificationData = {
         id: userNotification.id,
         title: userNotification.title,
         message: userNotification.message,
         type: userNotification.type,
-        createdAt: userNotification.createdAt
-      });
-      
+        createdAt: userNotification.createdAt,
+        isRead: false
+      };
+
+      // Log notification details
+      console.log(`Sending notification to user: ${appointment.userId} with ID: ${userNotification.id}`);
+
+      // Send to DB user ID channel
+      await pusherServer.trigger(getUserChannel(appointment.userId), EVENT_TYPES.NEW_NOTIFICATION, notificationData);
+
+      // Send to Clerk user ID channel if available
+      if (user?.clerkId) {
+        console.log(`Also sending notification to Clerk ID: ${user.clerkId}`);
+        await pusherServer.trigger(getUserChannel(user.clerkId), EVENT_TYPES.NEW_NOTIFICATION, notificationData);
+      }
+
       // Get admin users to notify them
       const adminUsers = await prisma.user.findMany({
-        where: { role: 'ADMIN' }
+        where: { 
+          role: { 
+            equals: 'ADMIN', 
+            mode: 'insensitive' 
+          } 
+        }
       });
+
+      console.log(`Found ${adminUsers.length} admin users to notify about new appointment payment`);
 
       // Create notification for all admins
       for (const admin of adminUsers) {
+        // Format date for admin notification
+        const appointmentDate = appointment.date ? 
+          new Date(appointment.date).toLocaleDateString('en-US', { 
+            month: 'short', 
+            day: 'numeric', 
+            year: 'numeric' 
+          }) : 'scheduled';
+        
+        const customerName = user?.name || "A customer";
+        
         const adminNotification = await prisma.notification.create({
           data: {
             userId: admin.id,
-            title: 'New Booking Payment',
-            message: `${appointment.user.name} has paid Rs${appointment.price} for ${appointment.service.name} service.`,
+            title: 'New Service Booking Payment',
+            message: `${customerName} has paid Rs${appointment.price} for ${appointment.service.name} service on ${appointmentDate}.`,
             type: 'PAYMENT',
             isRead: false
           }
         });
 
-        // Send real-time notification to each admin
-        await pusherServer.trigger(`user-${admin.id}`, 'new-notification', {
+        // Admin notification data
+        const adminNotificationData = {
           id: adminNotification.id,
           title: adminNotification.title,
           message: adminNotification.message,
           type: adminNotification.type,
-          createdAt: adminNotification.createdAt
-        });
+          createdAt: adminNotification.createdAt,
+          isRead: false
+        };
+
+        console.log(`Sending notification to admin: ${admin.id} with ID: ${adminNotification.id}`);
+        
+        // Send real-time notification to each admin
+        await pusherServer.trigger(getUserChannel(admin.id), EVENT_TYPES.NEW_NOTIFICATION, adminNotificationData);
+        
+        // Also send to admin's Clerk ID if available
+        if (admin.clerkId) {
+          console.log(`Also sending notification to admin's Clerk ID: ${admin.clerkId}`);
+          await pusherServer.trigger(getUserChannel(admin.clerkId), EVENT_TYPES.NEW_NOTIFICATION, adminNotificationData);
+        }
       }
       
+      // Also trigger a general admin channel notification
+      await pusherServer.trigger(getAdminChannel(), EVENT_TYPES.NEW_NOTIFICATION, {
+        message: `New service booking payment received: Rs${appointment.price}`,
+        appointmentId: appointment.id,
+        serviceName: appointment.service.name,
+        timestamp: new Date().toISOString()
+      });
+      
       console.log("Car wash payment successful - redirecting to bookings");
-      return NextResponse.redirect(`${url.origin}/dashboard/user/bookings?payment_success=true`);
+      
+      // Create a properly encoded redirect URL
+      const successUrl = new URL(`${url.origin}/dashboard/user/bookings`);
+      successUrl.searchParams.append('payment_success', 'true');
+      
+      return NextResponse.redirect(successUrl.toString());
     }
     
     // If no matching transaction found

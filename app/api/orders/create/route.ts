@@ -23,11 +23,25 @@ export async function POST(request: Request) {
     }
 
     // Get request body
-    const { items, totalAmount, paymentMethod, paymentStatus } = await request.json();
+    const { items, totalAmount, paymentMethod, paymentStatus, address, phoneNumber } = await request.json();
 
     if (!items || !Array.isArray(items) || items.length === 0) {
       return NextResponse.json(
         { error: 'Order items are required' },
+        { status: 400 }
+      );
+    }
+
+    if (!address) {
+      return NextResponse.json(
+        { error: 'Address is required' },
+        { status: 400 }
+      );
+    }
+
+    if (!phoneNumber) {
+      return NextResponse.json(
+        { error: 'Phone number is required' },
         { status: 400 }
       );
     }
@@ -67,6 +81,8 @@ export async function POST(request: Request) {
         status: "PENDING",
         paymentStatus: paymentStatus || "PENDING",
         paymentMethod: paymentMethod || "ESEWA",
+        address: address,
+        phoneNumber: phoneNumber,
         items: {
           create: items.map(item => ({
             product: { connect: { id: item.productId } },

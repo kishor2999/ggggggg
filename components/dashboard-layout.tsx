@@ -2,64 +2,47 @@
 
 import type React from "react";
 
-import { useState, useEffect, useRef } from "react";
-import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { CartIcon } from "@/components/cart-icon";
+import { NotificationMenu } from "@/components/notification-menu";
+import { useSafeNavigation } from "@/components/safe-navigation-provider";
+import { Button } from "@/components/ui/button";
 import {
-  ClerkProvider,
-  SignInButton,
-  SignUpButton,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+import { cn } from "@/lib/utils";
+import {
   SignedIn,
-  SignedOut,
   UserButton,
-  useUser,
+  useUser
 } from "@clerk/nextjs";
 import {
-  BarChart3,
-  Bell,
   Calendar,
   Car,
   CreditCard,
   Home,
   LogOut,
   Menu,
-  MessageSquare,
-  Settings,
-  Star,
+  ShoppingBag,
   User,
   Users,
   Wrench,
-  X,
-  ShoppingBag,
+  X
 } from "lucide-react";
-import { cn } from "@/lib/utils";
-import { Button } from "@/components/ui/button";
-import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
-} from "@/components/ui/dropdown-menu";
-import { Badge } from "@/components/ui/badge";
-import { CartIcon } from "@/components/cart-icon";
-import { pusherClient } from "@/lib/pusher";
-import { toast } from "sonner";
-import { format } from "date-fns";
-import { NotificationMenu } from "@/components/notification-menu";
+import Link from "next/link";
+import { useEffect, useState } from "react";
 
-interface Notification {
-  id: string;
+interface NavItem {
   title: string;
-  message: string;
-  type: string;
-  isRead: boolean;
-  createdAt: Date;
+  href: string;
+  icon: React.ElementType;
 }
 
 interface DashboardLayoutProps {
@@ -68,131 +51,24 @@ interface DashboardLayoutProps {
 }
 
 export function DashboardLayout({ children, userRole }: DashboardLayoutProps) {
-  const pathname = usePathname();
-  const router = useRouter();
+  // Start with a more robust mounting check
   const [isMounted, setIsMounted] = useState(false);
-  const [notifications, setNotifications] = useState<Notification[]>([]);
-  const [notificationCount, setNotificationCount] = useState(0);
   const { user } = useUser();
-
-  // Fetch notifications when component mounts
+  
+  // Use our safe navigation context instead of usePathname/useRouter
+  const { pathname: safePathname, navigate } = useSafeNavigation();
+  
   useEffect(() => {
+    // Set mounted state
     setIsMounted(true);
+  }, []);
 
-    // Only attempt to fetch notifications if we have a user
-    if (user?.id) {
-      fetchNotifications();
-    }
-  }, [user?.id]);
-
-  // Subscribe to Pusher channels for real-time notifications
-  useEffect(() => {
-    if (!user?.id) return;
-
-    // Subscribe to user-specific channel
-    const channel = pusherClient.subscribe(`user-${user.id}`);
-
-    // Also subscribe to role-based channel
-    const roleChannel = pusherClient.subscribe(`${userRole}-notifications`);
-
-    // Handle new notifications
-    const handleNewNotification = (notification: Notification) => {
-      setNotifications(prev => [notification, ...prev]);
-      setNotificationCount(prev => prev + 1);
-
-      // Show toast notification
-      toast.info(notification.title, {
-        description: notification.message,
-        duration: 5000,
-      });
-    };
-
-    // Listen for new notification events on both channels
-    channel.bind('new-notification', handleNewNotification);
-    roleChannel.bind('new-notification', handleNewNotification);
-
-    // Cleanup on unmount
-    return () => {
-      pusherClient.unsubscribe(`user-${user.id}`);
-      pusherClient.unsubscribe(`${userRole}-notifications`);
-    };
-  }, [user?.id, userRole]);
-
-  // Fetch notifications from API
-  const fetchNotifications = async () => {
-    try {
-      const response = await fetch(`/api/notifications?userId=${user?.id}`);
-      if (response.ok) {
-        const data = await response.json();
-        setNotifications(data);
-        setNotificationCount(data.filter((n: Notification) => !n.isRead).length);
-      }
-    } catch (error) {
-      console.error("Failed to fetch notifications:", error);
-    }
-  };
-
-  // Mark a notification as read
-  const markAsRead = async (notificationId: string) => {
-    try {
-      // Update locally first for better UX
-      setNotifications(prev =>
-        prev.map(notification =>
-          notification.id === notificationId
-            ? { ...notification, isRead: true }
-            : notification
-        )
-      );
-      setNotificationCount(prev => Math.max(0, prev - 1));
-
-      // Then update on the server
-      const response = await fetch(`/api/notifications/${notificationId}/read`, {
-        method: 'PUT'
-      });
-
-      if (!response.ok) {
-        console.error("Failed to mark notification as read");
-        // Revert the local change if server update fails
-        fetchNotifications();
-      }
-    } catch (error) {
-      console.error("Error marking notification as read:", error);
-      fetchNotifications();
-    }
-  };
-
-  // Mark all notifications as read
-  const markAllAsRead = async () => {
-    if (!user?.id || notifications.length === 0) return;
-
-    try {
-      // Update locally first for better UX
-      setNotifications(prev =>
-        prev.map(notification => ({ ...notification, isRead: true }))
-      );
-      setNotificationCount(0);
-
-      // Then update on the server
-      const response = await fetch(`/api/notifications/mark-all-read?userId=${user.id}`, {
-        method: 'PUT'
-      });
-
-      if (!response.ok) {
-        console.error("Failed to mark all notifications as read");
-        // Revert the local change if server update fails
-        fetchNotifications();
-      }
-    } catch (error) {
-      console.error("Error marking all notifications as read:", error);
-      fetchNotifications();
-    }
-  };
-
+  // Don't render nav elements during SSR
   if (!isMounted) {
-    return null;
+    return <div className="flex min-h-screen flex-col">{children}</div>;
   }
 
-  const adminNavItems = [
+  const adminNavItems: NavItem[] = [
     { title: "Dashboard", href: "/dashboard/admin", icon: Home },
     { title: "Bookings", href: "/dashboard/admin/bookings", icon: Calendar },
     { title: "Orders", href: "/dashboard/admin/orders", icon: CreditCard },
@@ -201,18 +77,16 @@ export function DashboardLayout({ children, userRole }: DashboardLayoutProps) {
     { title: "Products", href: "/dashboard/admin/products", icon: ShoppingBag },
   ];
 
-  const userNavItems = [
+  const userNavItems: NavItem[] = [
     { title: "Dashboard", href: "/dashboard/user", icon: Home },
     { title: "Book Service", href: "/dashboard/user/book", icon: Calendar },
     { title: "My Bookings", href: "/dashboard/user/bookings", icon: Car },
     { title: "Products", href: "/dashboard/user/products", icon: ShoppingBag },
     { title: "My Orders", href: "/dashboard/user/orders", icon: CreditCard },
     { title: "Payments", href: "/dashboard/user/payments", icon: CreditCard },
-    // { title: "Reviews", href: "/dashboard/user/reviews", icon: Star },
-    // { title: "Profile", href: "/dashboard/user/profile", icon: User },
   ];
 
-  const employeeNavItems = [
+  const employeeNavItems: NavItem[] = [
     { title: "Dashboard", href: "/dashboard/employee", icon: Home },
     { title: "Assigned Tasks", href: "/dashboard/employee/tasks", icon: Car },
   ];
@@ -231,20 +105,18 @@ export function DashboardLayout({ children, userRole }: DashboardLayoutProps) {
         ? "Customer"
         : "Employee";
 
-  const userName =
-    userRole === "admin"
-      ? "John Admin"
-      : userRole === "user"
-        ? "Sarah Customer"
-        : "Mike Employee";
-
   const handleRoleChange = (value: string) => {
-    if (value === "admin") {
-      router.push("/dashboard/admin");
-    } else if (value === "user") {
-      router.push("/dashboard/user");
-    } else if (value === "employee") {
-      router.push("/dashboard/employee");
+    // Safe navigation
+    try {
+      if (value === "admin") {
+        window.location.href = "/dashboard/admin";
+      } else if (value === "user") {
+        window.location.href = "/dashboard/user";
+      } else if (value === "employee") {
+        window.location.href = "/dashboard/employee";
+      }
+    } catch (error) {
+      console.error("Navigation error:", error);
     }
   };
 
@@ -275,7 +147,7 @@ export function DashboardLayout({ children, userRole }: DashboardLayoutProps) {
                   href={item.href}
                   className={cn(
                     "flex items-center gap-3 rounded-lg px-3 py-2 hover:bg-accent",
-                    pathname === item.href
+                    safePathname === item.href
                       ? "bg-accent text-accent-foreground"
                       : "text-muted-foreground"
                   )}
@@ -302,6 +174,7 @@ export function DashboardLayout({ children, userRole }: DashboardLayoutProps) {
         </Link>
         <div className="ml-auto flex items-center gap-4">
           {userRole === "user" && <CartIcon />}
+          <NotificationMenu />
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline" className="hidden md:flex">
@@ -345,12 +218,6 @@ export function DashboardLayout({ children, userRole }: DashboardLayoutProps) {
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-          <NotificationMenu
-            notifications={notifications}
-            notificationCount={notificationCount}
-            onMarkAsRead={markAsRead}
-            onMarkAllAsRead={markAllAsRead}
-          />
           <SignedIn>
             <UserButton />
           </SignedIn>
@@ -365,7 +232,7 @@ export function DashboardLayout({ children, userRole }: DashboardLayoutProps) {
                 href={item.href}
                 className={cn(
                   "flex items-center gap-3 rounded-lg px-3 py-2 hover:bg-accent",
-                  pathname === item.href
+                  safePathname === item.href
                     ? "bg-accent text-accent-foreground"
                     : "text-muted-foreground"
                 )}

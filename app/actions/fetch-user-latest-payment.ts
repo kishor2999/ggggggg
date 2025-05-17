@@ -21,11 +21,13 @@ export default async function fetchUserLatestPayment() {
       throw new Error("User not found");
     }
 
-    // Fetch the latest payment for this user
+    console.log(`Fetching latest payment for user ${user.id} (clerkId: ${userId})`);
+
+    // Fetch the latest payment for this user - include all payment statuses
     const latestPayment = await prisma.payment.findFirst({
       where: { 
-        userId: user.id,
-        status: "SUCCESS" 
+        userId: user.id
+        // Removed status filter to show any payment status
       },
       include: {
         order: true,
@@ -41,8 +43,11 @@ export default async function fetchUserLatestPayment() {
     });
 
     if (!latestPayment) {
+      console.log("No payments found for this user");
       return null;
     }
+
+    console.log(`Found payment with ID: ${latestPayment.id}, status: ${latestPayment.status}`);
 
     // Convert Decimal objects to strings to avoid serialization issues
     const serializedPayment = {

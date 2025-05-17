@@ -47,7 +47,7 @@ function ChartContainer({
   >["children"]
 }) {
   const uniqueId = React.useId()
-  const chartId = `chart-Rs{id || uniqueId.replace(/:/g, "")}`
+  const chartId = `chart-${id || uniqueId.replace(/:/g, "")}`
 
   return (
     <ChartContext.Provider value={{ config }}>
@@ -84,13 +84,13 @@ const ChartStyle = ({ id, config }: { id: string; config: ChartConfig }) => {
         __html: Object.entries(THEMES)
           .map(
             ([theme, prefix]) => `
-Rs{prefix} [data-chart=Rs{id}] {
-Rs{colorConfig
+${prefix} [data-chart=${id}] {
+${colorConfig
   .map(([key, itemConfig]) => {
     const color =
       itemConfig.theme?.[theme as keyof typeof itemConfig.theme] ||
       itemConfig.color
-    return color ? `  --color-Rs{key}: Rs{color};` : null
+    return color ? `  --color-${key}: ${color};` : null
   })
   .join("\n")}
 }
@@ -134,7 +134,7 @@ function ChartTooltipContent({
     }
 
     const [item] = payload
-    const key = `Rs{labelKey || item?.dataKey || item?.name || "value"}`
+    const key = `${labelKey || item?.dataKey || item?.name || "value"}`
     const itemConfig = getPayloadConfigFromPayload(config, item, key)
     const value =
       !labelKey && typeof label === "string"
@@ -180,7 +180,7 @@ function ChartTooltipContent({
       {!nestLabel ? tooltipLabel : null}
       <div className="grid gap-1.5">
         {payload.map((item, index) => {
-          const key = `Rs{nameKey || item.name || item.dataKey || "value"}`
+          const key = `${nameKey || item.name || item.dataKey || "value"}`
           const itemConfig = getPayloadConfigFromPayload(config, item, key)
           const indicatorColor = color || item.payload.fill || item.color
 
@@ -276,7 +276,7 @@ function ChartLegendContent({
       )}
     >
       {payload.map((item) => {
-        const key = `Rs{nameKey || item.dataKey || "value"}`
+        const key = `${nameKey || item.dataKey || "value"}`
         const itemConfig = getPayloadConfigFromPayload(config, item, key)
 
         return (

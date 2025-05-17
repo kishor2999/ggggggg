@@ -183,6 +183,11 @@ export default function BookService() {
 
       const appointment = await createAppointment(appointmentData);
       console.log("Appointment created:", appointment);
+      
+      // Show success message
+      toast.success("Booking created successfully! Please complete payment.", {
+        duration: 5000,
+      });
 
       // Always prepare the eSewa payment parameters as it's the only payment method
       const serviceDetails = services.find(s => s.id === selectedService);

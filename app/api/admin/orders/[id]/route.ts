@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import prisma from "@/lib/db";
+import { pusherServer, getUserChannel, EVENT_TYPES } from "@/lib/pusher";
 
 // Helper to check admin access - not being used currently for demo purposes
 async function checkAdminAccess(userId: string | null) {
@@ -124,16 +125,29 @@ export async function PATCH(
     // }
     
     const orderId = params.id;
-    const { status } = await request.json();
+    const { status, sendNotification } = await request.json();
     
     console.log("Updating order status:", orderId, "New status:", status);
     
     // Validate the status
-    const validStatuses = ["PENDING", "PAID", "SHIPPED", "DELIVERED", "CANCELED", "REFUNDED"];
+    const validStatuses = ["PENDING", "PROCESSING", "SHIPPED", "DELIVERED", "CANCELED", "REFUNDED"];
     if (!validStatuses.includes(status)) {
       return NextResponse.json(
         { error: "Invalid order status" },
         { status: 400 }
+      );
+    }
+    
+    // Get the order before updating to compare old and new status
+    const existingOrder = await prisma.order.findUnique({
+      where: { id: orderId },
+      include: { user: true }
+    });
+    
+    if (!existingOrder) {
+      return NextResponse.json(
+        { error: "Order not found" },
+        { status: 404 }
       );
     }
     
@@ -143,6 +157,7 @@ export async function PATCH(
       data: { status },
       include: {
         payment: true,
+        user: true,
       },
     });
     
@@ -152,6 +167,89 @@ export async function PATCH(
         where: { id: updatedOrder.payment.id },
         data: { status: "REFUNDED" },
       });
+    }
+    
+    // Send notification to user if requested
+    if (sendNotification && existingOrder.status !== status) {
+      try {
+        // Get user from the order
+        const userId = updatedOrder.userId;
+        
+        // Get more detailed user info
+        const user = await prisma.user.findUnique({
+          where: { id: userId },
+          select: { 
+            id: true,
+            clerkId: true,
+            name: true,
+            email: true 
+          }
+        });
+        
+        if (user) {
+          // Create different messages based on status
+          let title = 'Order Status Updated';
+          let message = `Your order #${orderId.substring(0, 8)} status has been updated to ${status}.`;
+          
+          // Customize message based on new status
+          switch(status) {
+            case 'PROCESSING':
+              message = `Your order #${orderId.substring(0, 8)} is now being processed. We'll update you when it ships.`;
+              break;
+            case 'SHIPPED':
+              message = `Good news! Your order #${orderId.substring(0, 8)} has been shipped and is on its way.`;
+              break;
+            case 'DELIVERED':
+              message = `Your order #${orderId.substring(0, 8)} has been delivered. Thank you for your purchase!`;
+              break;
+            case 'CANCELED':
+              message = `Your order #${orderId.substring(0, 8)} has been canceled. Please contact support if you have any questions.`;
+              break;
+            case 'REFUNDED':
+              message = `Your order #${orderId.substring(0, 8)} has been refunded. The amount should appear in your account within a few business days.`;
+              break;
+          }
+          
+          // Create notification in database
+          const notification = await prisma.notification.create({
+            data: {
+              userId: user.id,
+              title,
+              message,
+              type: 'ORDER',
+              isRead: false
+            }
+          });
+          
+          console.log(`Created notification for user ${user.id}:`, notification.id);
+          
+          // Notification data to be sent via Pusher
+          const notificationData = {
+            id: notification.id,
+            title: notification.title,
+            message: notification.message,
+            type: notification.type,
+            createdAt: notification.createdAt,
+            isRead: false
+          };
+          
+          // Send to user's DB ID channel
+          await pusherServer.trigger(getUserChannel(user.id), EVENT_TYPES.NEW_NOTIFICATION, notificationData);
+          
+          // Also send to Clerk ID if available
+          if (user.clerkId) {
+            console.log(`Also sending to Clerk ID: ${user.clerkId}`);
+            await pusherServer.trigger(getUserChannel(user.clerkId), EVENT_TYPES.NEW_NOTIFICATION, notificationData);
+          }
+          
+          console.log(`Notification sent to user about order status change to ${status}`);
+        } else {
+          console.error("Could not find user to send notification to");
+        }
+      } catch (notificationError) {
+        console.error("Error sending notification:", notificationError);
+        // Continue with the response even if notification fails
+      }
     }
     
     // Serialize decimal values

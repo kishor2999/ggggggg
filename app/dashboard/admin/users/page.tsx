@@ -13,15 +13,16 @@ import { getUsers, updateUserRole } from "@/app/actions/users"
 import { toast } from "sonner"
 
 interface User {
-  id: string
-  name: string
-  email: string
-  role: string
-  profileImage: string | null
-  createdAt: Date
-  clerkId: string | null
-  phone: string | null
-  updatedAt: Date
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+  profileImage: string | null;
+  createdAt: Date;
+  clerkId: string | null;
+  phoneNumber: string | null;
+  updatedAt: Date;
+  address?: string | null;
 }
 
 export default function UsersPage() {

@@ -139,7 +139,10 @@ export default function OrderDetailsPage() {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ status: orderStatus }),
+        body: JSON.stringify({ 
+          status: orderStatus,
+          sendNotification: true
+        }),
       });
 
       if (response.ok) {
@@ -221,7 +224,7 @@ export default function OrderDetailsPage() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="PENDING">Pending</SelectItem>
-                <SelectItem value="PAID">Paid</SelectItem>
+                <SelectItem value="PROCESSING">Processing</SelectItem>
                 <SelectItem value="SHIPPED">Shipped</SelectItem>
                 <SelectItem value="DELIVERED">Delivered</SelectItem>
                 <SelectItem value="CANCELED">Canceled</SelectItem>
