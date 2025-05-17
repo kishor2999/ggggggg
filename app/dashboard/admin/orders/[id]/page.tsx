@@ -75,10 +75,13 @@ interface Order {
     id: string;
     name: string;
     email: string;
-    phone: string | null;
+    phoneNumber: string | null;
   };
   items: OrderItem[];
   payment: Payment | null;
+  phoneNumber?: string;
+  address?: string;
+  description?: string;
 }
 
 // Status badge colors
@@ -264,8 +267,8 @@ export default function OrderDetailsPage() {
                     order.paymentStatus === "PAID" || order.paymentStatus === "SUCCESS"
                       ? "bg-green-100 text-green-800"
                       : order.paymentStatus === "PENDING"
-                      ? "bg-yellow-100 text-yellow-800"
-                      : "bg-red-100 text-red-800"
+                        ? "bg-yellow-100 text-yellow-800"
+                        : "bg-red-100 text-red-800"
                   }
                 >
                   Payment: {order.paymentStatus}
@@ -337,10 +340,22 @@ export default function OrderDetailsPage() {
                   <Mail className="mr-2 h-4 w-4 text-muted-foreground" />
                   <span>{order.user.email}</span>
                 </div>
-                {order.user.phone && (
-                  <div className="flex items-center">
-                    <Phone className="mr-2 h-4 w-4 text-muted-foreground" />
-                    <span>{order.user.phone}</span>
+                <div className="flex items-center">
+                  <Phone className="mr-2 h-4 w-4 text-muted-foreground" />
+                  <span>{order.phoneNumber || order.user.phoneNumber || "Not provided"}</span>
+                </div>
+
+                <Separator className="my-2" />
+
+                <div>
+                  <h3 className="text-sm font-medium mb-1">Delivery Address:</h3>
+                  <p className="text-sm">{order.address || "Not provided"}</p>
+                </div>
+
+                {order.description && (
+                  <div>
+                    <h3 className="text-sm font-medium mb-1">Additional Instructions:</h3>
+                    <p className="text-sm text-muted-foreground">{order.description}</p>
                   </div>
                 )}
               </CardContent>
@@ -363,8 +378,8 @@ export default function OrderDetailsPage() {
                       order.paymentStatus === "PAID" || order.paymentStatus === "SUCCESS"
                         ? "bg-green-100 text-green-800"
                         : order.paymentStatus === "PENDING"
-                        ? "bg-yellow-100 text-yellow-800"
-                        : "bg-red-100 text-red-800"
+                          ? "bg-yellow-100 text-yellow-800"
+                          : "bg-red-100 text-red-800"
                     }
                   >
                     {order.paymentStatus}

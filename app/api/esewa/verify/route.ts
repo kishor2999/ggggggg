@@ -167,13 +167,28 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ success: false, message: 'Appointment not found' }, { status: 404 });
       }
 
-      // Determine payment status based on the amount paid vs. full price
-      // If total_amount is less than appointment price, it's a half payment
+      // Determine payment status based on the amount paid vs. full price and paymentType
       const totalAmountNum = parseFloat(total_amount.toString().replace(/,/g, ''));
       const appointmentPrice = parseFloat(appointment.price.toString());
-      const paymentStatus = totalAmountNum >= appointmentPrice * 0.75 ? 'PAID' : 'HALF_PAID';
       
-      console.log(`Payment verified: ${totalAmountNum} of ${appointmentPrice}, status: ${paymentStatus}`);
+      // Get the payment type from the appointment
+      const appointmentPaymentType = appointment.paymentType || 'FULL';
+      console.log(`Appointment payment type: ${appointmentPaymentType}`);
+      
+      // Determine payment status based on both amount paid and payment type
+      // If it's a HALF payment type, then mark as HALF_PAID
+      let paymentStatus = 'PAID';
+      if (appointmentPaymentType === 'HALF') {
+        paymentStatus = 'HALF_PAID';
+        console.log('Payment type is HALF, marking as HALF_PAID');
+      } else if (totalAmountNum < appointmentPrice * 0.9) {
+        // If less than 90% of full price is paid, and it's not explicitly marked as HALF
+        // then it's probably a partial payment
+        paymentStatus = 'HALF_PAID';
+        console.log(`Amount paid (${totalAmountNum}) is less than 90% of price (${appointmentPrice}), marking as HALF_PAID`);
+      }
+      
+      console.log(`Payment verified: ${totalAmountNum} of ${appointmentPrice}, status: ${paymentStatus}, type: ${appointmentPaymentType}`);
       
       // Create payment record
       const payment = await prisma.payment.create({

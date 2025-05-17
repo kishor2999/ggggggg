@@ -232,11 +232,11 @@ export default function EmployeeTasks() {
         tasks.map((task) =>
           task.id === selectedTask.id
             ? {
-                ...task,
-                status: statusUpdate,
-                completedAt:
-                  statusUpdate === "completed" ? new Date() : task.completedAt,
-              }
+              ...task,
+              status: statusUpdate,
+              completedAt:
+                statusUpdate === "completed" ? new Date() : task.completedAt,
+            }
             : task
         )
       );
@@ -267,9 +267,9 @@ export default function EmployeeTasks() {
   // Get time display
   const getTimeDisplay = (date: Date) => {
     if (isToday(date)) {
-      return `Today, Rs{format(date, "h:mm a")}`;
+      return `Today, ${format(date, "h:mm a")}`;
     } else if (isTomorrow(date)) {
-      return `Tomorrow, Rs{format(date, "h:mm a")}`;
+      return `Tomorrow, ${format(date, "h:mm a")}`;
     } else {
       return format(date, "MMM d, h:mm a");
     }
@@ -320,8 +320,8 @@ export default function EmployeeTasks() {
             {task.status === "scheduled"
               ? "Start"
               : task.status === "in-progress"
-              ? "Complete"
-              : "Update"}
+                ? "Complete"
+                : "Update"}
           </Button>
         </div>
       </CardContent>
@@ -757,8 +757,8 @@ export default function EmployeeTasks() {
               {statusUpdate === "scheduled"
                 ? "Update the task status"
                 : statusUpdate === "in-progress"
-                ? "Mark this task as completed"
-                : "Update task status"}
+                  ? "Mark this task as completed"
+                  : "Update task status"}
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
@@ -799,8 +799,8 @@ export default function EmployeeTasks() {
               {statusUpdate === "in-progress"
                 ? "Start Task"
                 : statusUpdate === "completed"
-                ? "Complete Task"
-                : "Update Status"}
+                  ? "Complete Task"
+                  : "Update Status"}
             </Button>
           </DialogFooter>
         </DialogContent>

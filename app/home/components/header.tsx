@@ -25,6 +25,9 @@ export default async function Header() {
   const metadata = (sessionClaims?.metadata as UserMetadata) || {};
   const role = metadata.role;
 
+  // Check if user is admin
+  const isAdmin = role === "admin";
+
   // Determine dashboard link based on role
   let dashboardLink = "/dashboard";
   if (role === "admin") {
@@ -68,9 +71,11 @@ export default async function Header() {
         </nav>
 
         <div className="flex items-center gap-4">
-          <Button asChild className="hidden md:inline-flex">
-            <Link href="/dashboard/user/book">Book Now</Link>
-          </Button>
+          {!isAdmin && (
+            <Button asChild className="hidden md:inline-flex">
+              <Link href="/dashboard/user/book">Book Now</Link>
+            </Button>
+          )}
           <SignedOut>
             <SignInButton />
             <SignUpButton />
@@ -140,9 +145,11 @@ export default async function Header() {
                 <SignedIn>
                   <UserButton />
                 </SignedIn>
-                <Button className="mt-4 w-full" asChild>
-                  <Link href="/dashboard/user/book">Book Now</Link>
-                </Button>
+                {!isAdmin && (
+                  <Button className="mt-4 w-full" asChild>
+                    <Link href="/dashboard/user/book">Book Now</Link>
+                  </Button>
+                )}
               </nav>
             </SheetContent>
           </Sheet>

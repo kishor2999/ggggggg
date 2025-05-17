@@ -1,4 +1,4 @@
-import ProductForm from "../components/ProductForm";
+import ProductFormWrapper from "../components/ProductFormWrapper";
 import prisma from "@/lib/db";
 import { DashboardLayout } from "@/components/dashboard-layout";
 
@@ -16,7 +16,7 @@ export default async function NewProductPage() {
             </p>
           </div>
         </div>
-        <ProductForm categories={categories} />
+        <ProductFormWrapper categories={categories} />
       </div>
     </DashboardLayout>
   );

@@ -12,10 +12,24 @@ export async function createAppointment(data: {
   paymentType?: 'FULL' | 'HALF';
 }) {
   try {
-    const { userId } = await auth();
+    const { userId, sessionClaims } = await auth();
     
     if (!userId) {
       throw new Error('User not authenticated');
+    }
+
+    // Define metadata type
+    type UserMetadata = {
+      role?: "customer" | "employee" | "admin";
+    };
+
+    // Get user role from session claims
+    const metadata = (sessionClaims?.metadata as UserMetadata) || {};
+    const role = metadata.role;
+
+    // Check if user is admin and prevent appointment creation
+    if (role === "admin") {
+      throw new Error('Administrators cannot book appointments');
     }
 
     const user = await prisma.user.findUnique({
@@ -53,9 +67,11 @@ export async function createAppointment(data: {
         notes: data.notes,
         price: service.price,
         paymentMethod: data.paymentMethod,
+        paymentType: data.paymentType || "FULL",
         status: 'PENDING',
         paymentStatus: paymentStatus,
-        needsStaffAssignment: true,
+        needsEmployeeAssignment: true,
+        phoneNumber: user.phoneNumber || "0000000000",
       },
       include: {
         service: true,
@@ -79,8 +95,9 @@ export async function updateAppointment(
     timeSlot?: string;
     notes?: string;
     status?: string;
-    staffId?: string | null;
+    employeeId?: string | null;
     paymentStatus?: string;
+    paymentType?: string;
   }
 ) {
   try {
@@ -117,15 +134,16 @@ export async function updateAppointment(
         ...(data.timeSlot && { timeSlot: data.timeSlot }),
         ...(data.notes !== undefined && { notes: data.notes }),
         ...(data.status && { status: data.status }),
-        ...(data.staffId && { staffId: data.staffId }),
+        ...(data.employeeId !== undefined && { employeeId: data.employeeId }),
         ...(data.paymentStatus && { paymentStatus: data.paymentStatus }),
+        ...(data.paymentType && { paymentType: data.paymentType }),
         ...(price && { price }),
         updatedAt: new Date(),
       },
       include: {
         service: true,
         vehicle: true,
-        staff: true,
+        employee: true,
         user: true,
       }
     });

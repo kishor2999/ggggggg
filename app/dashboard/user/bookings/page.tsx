@@ -121,6 +121,12 @@ export default function BookingHistory() {
       try {
         setLoading(true);
         const appointments = await fetchUserAppointments();
+        console.log("Bookings loaded:", appointments.map(app => ({
+          id: app.id,
+          status: app.status,
+          paymentStatus: app.paymentStatus,
+          paymentType: app.paymentType
+        })));
         setBookings(appointments);
       } catch (error) {
         console.error("Error fetching bookings:", error);
@@ -183,10 +189,22 @@ export default function BookingHistory() {
     }
   };
 
-  const getPaymentStatusBadge = (status: string) => {
-    switch (status) {
-      case "PAID":
-        return <Badge className="bg-green-500">Paid</Badge>;
+  const getPaymentStatusBadge = (status: string, paymentType: string) => {
+    // Add debugging
+    console.log("Payment status badge:", { status, paymentType });
+
+    // Normalize the values to handle case sensitivity issues
+    const normalizedStatus = status?.toUpperCase() || '';
+    const normalizedPaymentType = paymentType?.toUpperCase() || '';
+
+    if (normalizedStatus === "PAID" || normalizedStatus === "SUCCESS") {
+      if (normalizedPaymentType === "HALF") {
+        return <Badge className="bg-yellow-500">Half Paid</Badge>;
+      }
+      return <Badge className="bg-green-500">Fully Paid</Badge>;
+    }
+
+    switch (normalizedStatus) {
       case "HALF_PAID":
         return <Badge className="bg-yellow-500">Half Paid</Badge>;
       case "PENDING":
@@ -312,7 +330,7 @@ export default function BookingHistory() {
                               {getStatusBadge(booking.status)}
                             </TableCell>
                             <TableCell>
-                              {getPaymentStatusBadge(booking.paymentStatus)}
+                              {getPaymentStatusBadge(booking.paymentStatus, booking.paymentType)}
                             </TableCell>
                             <TableCell className="text-right">
                               <div className="flex justify-end gap-2">
@@ -387,7 +405,7 @@ export default function BookingHistory() {
                               {getStatusBadge(booking.status)}
                             </TableCell>
                             <TableCell>
-                              {getPaymentStatusBadge(booking.paymentStatus)}
+                              {getPaymentStatusBadge(booking.paymentStatus, booking.paymentType)}
                             </TableCell>
                             <TableCell className="text-right">
                               <div className="flex justify-end gap-2">
@@ -456,12 +474,11 @@ export default function BookingHistory() {
                 <div className="grid grid-cols-4 items-center gap-4">
                   <Label className="text-right">Payment</Label>
                   <div className="col-span-3">
-                    {getPaymentStatusBadge(selectedBooking.paymentStatus)}
-                    {selectedBooking.paymentMethod && (
-                      <span className="ml-2 text-sm text-muted-foreground">
-                        via {selectedBooking.paymentMethod}
-                      </span>
-                    )}
+                    {getPaymentStatusBadge(selectedBooking.paymentStatus, selectedBooking.paymentType)}
+                    <div className="text-sm text-muted-foreground mt-1">
+                      {selectedBooking.paymentMethod}
+                      {selectedBooking.paymentType === "HALF" && " (50% Advance)"}
+                    </div>
                   </div>
                 </div>
                 <div className="grid grid-cols-4 items-center gap-4">

@@ -36,8 +36,8 @@ export async function getEmployeeTasks(userId: string) {
 
     console.log("Found user:", user.id);
 
-    // Find the staff member associated with the user
-    const staff = await prisma.staff.findFirst({
+    // Find the employee associated with the user
+    const employee = await prisma.employee.findFirst({
       where: {
         userId: user.id,
       },
@@ -59,18 +59,18 @@ export async function getEmployeeTasks(userId: string) {
       },
     });
 
-    if (!staff) {
-      console.log("Staff member not found for user:", user.id);
-      throw new Error("Staff member not found");
+    if (!employee) {
+      console.log("Employee not found for user:", user.id);
+      throw new Error("Employee not found");
     }
 
-    console.log("Found staff member:", staff.id);
-    console.log("Number of appointments:", staff.appointments.length);
+    console.log("Found employee:", employee.id);
+    console.log("Number of appointments:", employee.appointments.length);
 
     // Log each appointment's details
 
     // Transform appointments into tasks
-    const tasks = staff.appointments.map((appointment) => {
+    const tasks = employee.appointments.map((appointment) => {
       // Create a properly formatted Date for frontend use
       const scheduledTime = new Date(appointment.date);
 
@@ -137,14 +137,14 @@ export async function updateTaskStatus(
     };
 
     console.log(
-      `Updating task Rs{taskId} status to Rs{status} (DB status: Rs{mapToDbStatus(status)})`
+      `Updating task ${taskId} status to ${status} (DB status: ${mapToDbStatus(status)})`
     );
 
     // Update the appointment status
     const updatedAppointment = await prisma.appointment.update({
       where: {
         id: taskId,
-        staff: {
+        employee: {
           user: {
             clerkId: userId,
           },
@@ -153,7 +153,7 @@ export async function updateTaskStatus(
       data: {
         status: mapToDbStatus(status),
         notes: completionNotes
-          ? `Rs{completionNotes}\nRs{new Date().toISOString()}`
+          ? `${completionNotes}\n${new Date().toISOString()}`
           : undefined,
       },
     });

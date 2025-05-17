@@ -14,8 +14,12 @@ import {
 } from "@/components/ui/select";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
-import { UploadButton } from "@uploadthing/react";
+import { generateReactHelpers } from "@uploadthing/react";
+import type { OurFileRouter } from "@/app/api/uploadthing/core";
 import Image from "next/image";
+import { Loader2 } from "lucide-react";
+
+const { useUploadThing } = generateReactHelpers<OurFileRouter>();
 
 interface Category {
   id: string;
@@ -49,6 +53,26 @@ export default function ProductForm({
     categoryId: initialData?.categoryId || "",
     images: initialData?.images || [],
   });
+
+  const { startUpload, isUploading } = useUploadThing("imageUploader");
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files || e.target.files.length === 0) return;
+
+    try {
+      const uploadedFiles = await startUpload(Array.from(e.target.files));
+      if (uploadedFiles) {
+        const newImages = uploadedFiles.map((file) => file.url);
+        setFormData({
+          ...formData,
+          images: [...formData.images, ...newImages],
+        });
+        toast.success("Images uploaded successfully");
+      }
+    } catch (error) {
+      toast.error("Failed to upload images");
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -187,38 +211,50 @@ export default function ProductForm({
               </div>
             ))}
           </div>
-          <UploadButton
-            endpoint="imageUploader"
-            className="bg-red-500"
-            onClientUploadComplete={(res) => {
-              if (res) {
-                const newImages = res.map((file) => file.url);
-                setFormData({
-                  ...formData,
-                  images: [...formData.images, ...newImages],
-                });
-                toast.success("Images uploaded successfully");
-              }
-            }}
-            onUploadError={(error: Error) => {
-              toast.error(`Failed to upload images: ${error.message}`);
-            }}
-          />
+          <div>
+            <div className="space-y-2">
+              <div className="relative">
+                <Input
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  onChange={handleFileUpload}
+                  disabled={isUploading}
+                  className={isUploading ? "opacity-70" : ""}
+                />
+                {isUploading && (
+                  <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                    <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                  </div>
+                )}
+              </div>
+              {isUploading ? (
+                <p className="text-xs text-primary font-medium">
+                  Uploading files... Please wait
+                </p>
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  Upload product images (max 10 images, 4MB each)
+                </p>
+              )}
+            </div>
+          </div>
         </div>
       </div>
 
       <div className="flex gap-4">
-        <Button type="submit" disabled={isLoading}>
+        <Button type="submit" disabled={isLoading || isUploading}>
           {isLoading
             ? "Saving..."
             : initialData?.id
-            ? "Update Product"
-            : "Create Product"}
+              ? "Update Product"
+              : "Create Product"}
         </Button>
         <Button
           type="button"
           variant="outline"
           onClick={() => router.push("/dashboard/admin/products")}
+          disabled={isUploading}
         >
           Cancel
         </Button>

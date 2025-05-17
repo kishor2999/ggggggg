@@ -64,7 +64,7 @@ export default function UsersPage() {
     try {
       await updateUserRole(userId, newRole)
       // Update the local state
-      setUsers(users.map(user => 
+      setUsers(users.map(user =>
         user.id === userId ? { ...user, role: newRole } : user
       ))
       toast.success("User role updated successfully")
@@ -124,7 +124,7 @@ export default function UsersPage() {
                     <SelectContent>
                       <SelectItem value="all">All Roles</SelectItem>
                       <SelectItem value="customer">Customer</SelectItem>
-                      <SelectItem value="staff">Staff Member</SelectItem>
+                      <SelectItem value="employee">Employee</SelectItem>
                       <SelectItem value="admin">Admin</SelectItem>
                     </SelectContent>
                   </Select>
@@ -164,7 +164,7 @@ export default function UsersPage() {
                           </TableCell>
                           <TableCell>{user.email}</TableCell>
                           <TableCell>
-                            <Select 
+                            <Select
                               value={user.role}
                               onValueChange={(value) => handleRoleChange(user.id, value)}
                             >
@@ -172,12 +172,12 @@ export default function UsersPage() {
                                 <SelectValue>
                                   {user.role === 'admin' && 'Admin'}
                                   {user.role === 'customer' && 'Customer'}
-                                  {user.role === 'staff' && 'Staff Member'}
+                                  {user.role === 'employee' && 'Employee'}
                                 </SelectValue>
                               </SelectTrigger>
                               <SelectContent>
                                 <SelectItem value="customer">Customer</SelectItem>
-                                <SelectItem value="staff">Staff Member</SelectItem>
+                                <SelectItem value="employee">Employee</SelectItem>
                                 <SelectItem value="admin">Admin</SelectItem>
                               </SelectContent>
                             </Select>

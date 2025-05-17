@@ -1,4 +1,4 @@
-import ProductForm from "../../components/ProductForm";
+import ProductFormWrapper from "../../components/ProductFormWrapper";
 import prisma from "@/lib/db";
 import { notFound } from "next/navigation";
 import { DashboardLayout } from "@/components/dashboard-layout";
@@ -32,7 +32,7 @@ export default async function EditProductPage({
             </p>
           </div>
         </div>
-        <ProductForm 
+        <ProductFormWrapper
           initialData={{
             id: product.id,
             name: product.name,
@@ -42,7 +42,7 @@ export default async function EditProductPage({
             categoryId: product.categoryId,
             images: product.images,
           }}
-          categories={categories} 
+          categories={categories}
         />
       </div>
     </DashboardLayout>

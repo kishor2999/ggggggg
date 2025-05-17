@@ -19,6 +19,10 @@ import { toast } from "sonner";
 import { EsewaPaymentForm } from "@/app/components/EsewaPaymentForm";
 import { v4 as uuidv4 } from "uuid";
 import { createEsewaFormData } from "@/lib/esewa-utils";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { getUserProfile } from "@/app/actions/users";
 
 // Define interface for eSewa payment data
 interface EsewaPaymentData {
@@ -48,7 +52,19 @@ export default function CheckoutPage() {
   const [showPaymentForm, setShowPaymentForm] = useState(false);
   const [processingPayment, setProcessingPayment] = useState(false);
   const [orderId, setOrderId] = useState<string>("");
+  const [showAddressForm, setShowAddressForm] = useState(true);
+  const [showPaymentButton, setShowPaymentButton] = useState(false);
+  const [addressValidated, setAddressValidated] = useState(false);
   const router = useRouter();
+
+  // Form fields
+  const [phoneNumber, setPhoneNumber] = useState("");
+  const [address, setAddress] = useState("");
+  const [description, setDescription] = useState("");
+
+  // Validation errors
+  const [phoneError, setPhoneError] = useState("");
+  const [addressError, setAddressError] = useState("");
 
   // Calculate totals
   const subtotal = items.reduce((total, item) => {
@@ -61,7 +77,85 @@ export default function CheckoutPage() {
     if (items.length === 0 && !processingPayment) {
       router.push("/dashboard/user/cart");
     }
+
+    // Load user profile to pre-fill address and phone number
+    const loadUserProfile = async () => {
+      try {
+        const profile = await getUserProfile();
+        if (profile.phoneNumber) {
+          setPhoneNumber(profile.phoneNumber);
+        }
+        if (profile.address) {
+          setAddress(profile.address);
+        }
+      } catch (error) {
+        console.error("Error loading user profile:", error);
+      }
+    };
+
+    loadUserProfile();
   }, [items.length, router, processingPayment]);
+
+  // Validate phone number
+  const validatePhone = (value: string) => {
+    if (!value) {
+      setPhoneError("Phone number is required");
+      return false;
+    }
+    if (value.length !== 10) {
+      setPhoneError("Phone number must be exactly 10 digits");
+      return false;
+    }
+    if (!/^\d+$/.test(value)) {
+      setPhoneError("Phone number can only contain digits");
+      return false;
+    }
+    setPhoneError("");
+    return true;
+  };
+
+  // Validate address
+  const validateAddress = (value: string) => {
+    if (!value) {
+      setAddressError("Address is required");
+      return false;
+    }
+    if (value.length < 5) {
+      setAddressError("Address must be at least 5 characters");
+      return false;
+    }
+    setAddressError("");
+    return true;
+  };
+
+  // Handle phone number input
+  const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value.replace(/\D/g, '').slice(0, 10);
+    setPhoneNumber(value);
+    validatePhone(value);
+  };
+
+  // Handle address input
+  const handleAddressChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setAddress(value);
+    validateAddress(value);
+  };
+
+  // Validate the address form
+  const validateAddressForm = () => {
+    const isPhoneValid = validatePhone(phoneNumber);
+    const isAddressValid = validateAddress(address);
+
+    if (isPhoneValid && isAddressValid) {
+      setAddressValidated(true);
+      setShowAddressForm(false);
+      setShowPaymentButton(true);
+      toast.success("Contact information validated. You can now proceed to payment.");
+    } else {
+      toast.error("Please correct the errors in the form.");
+    }
+  };
 
   // Initialize payment
   const initializePayment = async () => {
@@ -71,7 +165,7 @@ export default function CheckoutPage() {
     try {
       // Generate a unique transaction ID
       const transactionUuid = uuidv4().replace(/[^a-zA-Z0-9-]/g, ''); // Ensure only alphanumeric and hyphens
-      
+
       if (items.length === 0) {
         toast.error("Your cart is empty");
         setIsLoading(false);
@@ -91,6 +185,9 @@ export default function CheckoutPage() {
         paymentMethod: "ESEWA",
         paymentStatus: "PENDING",
         transactionId: transactionUuid, // Store the transaction ID for verification later
+        address: address, // Add the address
+        phoneNumber: phoneNumber, // Add the phone number
+        description: description, // Add optional description
       };
 
       console.log("Creating order with data:", requestData);
@@ -117,7 +214,7 @@ export default function CheckoutPage() {
 
       // Create eSewa form data according to documentation
       const origin = window.location.origin;
-      
+
       // Use clean URLs as required by eSewa documentation
       const successUrl = `${origin}/api/payments/esewa/success`;
       const failureUrl = `${origin}/dashboard/user/orders/failed`;
@@ -149,6 +246,68 @@ export default function CheckoutPage() {
       setIsLoading(false);
       setProcessingPayment(false);
     }
+  };
+
+  const renderAddressForm = () => {
+    return (
+      <Card className="mb-6">
+        <CardHeader>
+          <CardTitle>Delivery Information</CardTitle>
+          <CardDescription>
+            Please provide your contact details to complete your order
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid gap-2">
+            <Label htmlFor="phoneNumber">Phone Number *</Label>
+            <Input
+              id="phoneNumber"
+              placeholder="10-digit phone number"
+              maxLength={10}
+              value={phoneNumber}
+              onChange={handlePhoneChange}
+            />
+            {phoneError && (
+              <p className="text-sm text-red-500">{phoneError}</p>
+            )}
+            <p className="text-xs text-muted-foreground">Must be exactly 10 digits</p>
+          </div>
+
+          <div className="grid gap-2">
+            <Label htmlFor="address">Delivery Address *</Label>
+            <Input
+              id="address"
+              placeholder="Your address"
+              value={address}
+              onChange={handleAddressChange}
+            />
+            {addressError && (
+              <p className="text-sm text-red-500">{addressError}</p>
+            )}
+            <p className="text-xs text-muted-foreground">Must be at least 5 characters</p>
+          </div>
+
+          <div className="grid gap-2">
+            <Label htmlFor="description">Additional Instructions (Optional)</Label>
+            <Textarea
+              id="description"
+              placeholder="Any special instructions for delivery or order..."
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              rows={3}
+            />
+          </div>
+        </CardContent>
+        <CardFooter>
+          <Button
+            className="w-full"
+            onClick={validateAddressForm}
+          >
+            Continue to Payment
+          </Button>
+        </CardFooter>
+      </Card>
+    );
   };
 
   return (
@@ -196,6 +355,9 @@ export default function CheckoutPage() {
                 ))}
               </CardContent>
             </Card>
+
+            {/* Display Address Form */}
+            {showAddressForm && renderAddressForm()}
           </div>
 
           {/* Payment Summary */}
@@ -217,30 +379,32 @@ export default function CheckoutPage() {
                 </div>
               </CardContent>
               <CardFooter>
-                <Button
-                  className="w-full"
-                  onClick={initializePayment}
-                  disabled={isLoading}
-                >
-                  {isLoading ? (
-                    <>
-                      <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-background border-t-transparent"></div>
-                      Processing...
-                    </>
-                  ) : (
-                    "Pay with eSewa"
-                  )}
-                </Button>
+                {showPaymentButton && (
+                  <Button
+                    className="w-full"
+                    onClick={initializePayment}
+                    disabled={isLoading}
+                  >
+                    {isLoading ? (
+                      <>
+                        <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-background border-t-transparent"></div>
+                        Processing...
+                      </>
+                    ) : (
+                      "Pay with eSewa"
+                    )}
+                  </Button>
+                )}
               </CardFooter>
             </Card>
           </div>
         </div>
       </div>
-      
+
       {/* eSewa Payment Form - Exact same pattern as in book page */}
       {showPaymentForm && esewaParams && (
-        <EsewaPaymentForm 
-          params={esewaParams} 
+        <EsewaPaymentForm
+          params={esewaParams}
           onPaymentInitiated={() => {
             toast.info("Redirecting to eSewa payment gateway...");
           }}

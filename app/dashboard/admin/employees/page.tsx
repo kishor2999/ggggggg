@@ -53,7 +53,7 @@ import {
   Eye,
 } from "lucide-react";
 import { format } from "date-fns";
-import { getStaff, type StaffWithUser } from "@/app/actions/staff";
+import { getEmployees, type EmployeeWithUser } from "@/app/actions/employees";
 
 // Sample locations
 const locations = [
@@ -65,43 +65,43 @@ const locations = [
 ];
 
 // Sample roles
-const roles = ["All Roles", "Washer", "Detailer", "Manager", "Receptionist"];
+const roles = ["All Roles", "washer", "detailer", "manager", "receptionist", "cleaner"];
 
 export default function AdminEmployees() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedEmployee, setSelectedEmployee] =
-    useState<StaffWithUser | null>(null);
+    useState<EmployeeWithUser | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [filterLocation, setFilterLocation] = useState("All Locations");
   const [filterRole, setFilterRole] = useState("All Roles");
   const [filterRating, setFilterRating] = useState("All Ratings");
   const [viewMode, setViewMode] = useState<"table" | "cards">("table");
-  const [staff, setStaff] = useState<StaffWithUser[]>([]);
+  const [employee, setEmployee] = useState<EmployeeWithUser[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const fetchStaff = async () => {
+    const fetchEmployee = async () => {
       try {
-        const staffData = await getStaff();
-        setStaff(staffData);
+        const employeeData = await getEmployees();
+        setEmployee(employeeData);
       } catch (error) {
-        console.error("Error fetching staff:", error);
+        console.error("Error fetching employee:", error);
       } finally {
         setIsLoading(false);
       }
     };
 
-    fetchStaff();
+    fetchEmployee();
   }, []);
 
-  // Filter staff based on search query and filters
-  const filteredStaff = staff.filter((employee) => {
+  // Filter employee based on search query and filters
+  const filteredEmployee = employee.filter((employee) => {
     // Search query filter
     const matchesSearch =
       employee.user.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       employee.user.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (employee.user.phone && employee.user.phone.includes(searchQuery)) ||
+      (employee.user.phoneNumber && employee.user.phoneNumber.includes(searchQuery)) ||
       employee.id.toLowerCase().includes(searchQuery.toLowerCase());
 
     // Role filter
@@ -111,16 +111,16 @@ export default function AdminEmployees() {
     return matchesSearch && matchesRole;
   });
 
-  // Sort staff by creation date (most recent first)
-  const sortedStaff = [...filteredStaff].sort(
+  // Sort employee by creation date (most recent first)
+  const sortedEmployee = [...filteredEmployee].sort(
     (a, b) => b.createdAt.getTime() - a.createdAt.getTime()
   );
 
-  const handleViewDetails = (employee: StaffWithUser) => {
+  const handleViewDetails = (employee: EmployeeWithUser) => {
     setSelectedEmployee(employee);
   };
 
-  const handleEditEmployee = (employee: StaffWithUser) => {
+  const handleEditEmployee = (employee: EmployeeWithUser) => {
     setSelectedEmployee(employee);
     setIsEditDialogOpen(true);
   };
@@ -263,7 +263,7 @@ export default function AdminEmployees() {
               </div>
             </CardHeader>
             <CardContent>
-              {sortedStaff.length === 0 ? (
+              {sortedEmployee.length === 0 ? (
                 <div className="text-center py-8">
                   <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-muted">
                     <User className="h-6 w-6 text-muted-foreground" />
@@ -294,7 +294,7 @@ export default function AdminEmployees() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {sortedStaff.map((employee) => (
+                      {sortedEmployee.map((employee) => (
                         <TableRow key={employee.id}>
                           <TableCell>
                             <div className="flex items-center gap-3">
@@ -351,7 +351,7 @@ export default function AdminEmployees() {
                 </div>
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                  {sortedStaff.map((employee) => (
+                  {sortedEmployee.map((employee) => (
                     <Card key={employee.id} className="overflow-hidden">
                       <CardHeader className="p-4 pb-2">
                         <div className="flex items-center gap-3">
@@ -388,7 +388,7 @@ export default function AdminEmployees() {
                               Phone:
                             </span>
                             <p className="font-medium">
-                              {employee.user.phone || "N/A"}
+                              {employee.user.phoneNumber || "N/A"}
                             </p>
                           </div>
                         </div>
@@ -469,7 +469,7 @@ export default function AdminEmployees() {
                       </div>
                       <div className="flex items-center gap-2 text-sm">
                         <Phone className="h-4 w-4 text-muted-foreground" />
-                        <span>{selectedEmployee.user.phone || "N/A"}</span>
+                        <span>{selectedEmployee.user.phoneNumber || "N/A"}</span>
                       </div>
                     </div>
                   </div>
@@ -543,7 +543,7 @@ export default function AdminEmployees() {
                         <Label htmlFor="edit-phone">Phone</Label>
                         <Input
                           id="edit-phone"
-                          defaultValue={selectedEmployee.user.phone}
+                          defaultValue={selectedEmployee.user.phoneNumber}
                         />
                       </div>
                     </div>
@@ -571,10 +571,10 @@ export default function AdminEmployees() {
                             <SelectValue placeholder="Select role" />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="Washer">Washer</SelectItem>
-                            <SelectItem value="Detailer">Detailer</SelectItem>
-                            <SelectItem value="Manager">Manager</SelectItem>
-                            <SelectItem value="Receptionist">
+                            <SelectItem value="washer">Washer</SelectItem>
+                            <SelectItem value="detailer">Detailer</SelectItem>
+                            <SelectItem value="manager">Manager</SelectItem>
+                            <SelectItem value="receptionist">
                               Receptionist
                             </SelectItem>
                           </SelectContent>
@@ -718,15 +718,15 @@ export default function AdminEmployees() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="grid gap-2">
                   <Label htmlFor="new-role">Role</Label>
-                  <Select defaultValue="Washer">
+                  <Select defaultValue="washer">
                     <SelectTrigger id="new-role">
                       <SelectValue placeholder="Select role" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="Washer">Washer</SelectItem>
-                      <SelectItem value="Detailer">Detailer</SelectItem>
-                      <SelectItem value="Manager">Manager</SelectItem>
-                      <SelectItem value="Receptionist">Receptionist</SelectItem>
+                      <SelectItem value="washer">Washer</SelectItem>
+                      <SelectItem value="detailer">Detailer</SelectItem>
+                      <SelectItem value="manager">Manager</SelectItem>
+                      <SelectItem value="receptionist">Receptionist</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>

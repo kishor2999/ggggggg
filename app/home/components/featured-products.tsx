@@ -8,6 +8,8 @@ import { formatPrice } from "@/lib/utils";
 import { useCart } from "@/hooks/use-cart";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { toast } from "sonner";
+import { useUser } from "@clerk/nextjs";
 
 interface Product {
   id: string;
@@ -26,6 +28,16 @@ export default function FeaturedProducts() {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const { addItem, items } = useCart();
+  const { isSignedIn, user } = useUser();
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  useEffect(() => {
+    if (isSignedIn && user) {
+      // Get user role from metadata
+      const userRole = user.publicMetadata?.role as string;
+      setIsAdmin(userRole === "admin");
+    }
+  }, [isSignedIn, user]);
 
   useEffect(() => {
     const fetchProducts = async () => {
@@ -49,12 +61,19 @@ export default function FeaturedProducts() {
 
   const handleAddToCart = (product: Product) => {
     try {
+      // Check if user is admin
+      if (isAdmin) {
+        toast.error("Administrators cannot add items to cart.");
+        return;
+      }
+
       addItem({
         id: product.id,
         name: product.name,
         price: product.price,
         image: product.images[0] || "/placeholder.svg",
         quantity: 1,
+        stock: product.stock,
       });
     } catch (error) {
       console.error("Error adding item to cart:", error);
@@ -125,11 +144,13 @@ export default function FeaturedProducts() {
                   </span>
                   <Button
                     onClick={() => handleAddToCart(product)}
-                    disabled={product.stock <= 0 || isInCart(product.id)}
+                    disabled={product.stock <= 0 || isInCart(product.id) || isAdmin}
                     size="sm"
                   >
                     {isInCart(product.id) ? (
                       "Added"
+                    ) : isAdmin ? (
+                      "Not Available"
                     ) : (
                       <>
                         <ShoppingCart className="h-4 w-4 mr-2" />

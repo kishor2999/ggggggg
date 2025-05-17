@@ -170,7 +170,7 @@ export default function BookService() {
 
     try {
       setIsSubmitting(true);
-      
+
       const appointmentData = {
         serviceId: selectedService,
         vehicleId: selectedVehicle,
@@ -180,7 +180,7 @@ export default function BookService() {
         paymentMethod: paymentMethod,
         paymentType: paymentType,
       };
-      
+
       const appointment = await createAppointment(appointmentData);
       console.log("Appointment created:", appointment);
 
@@ -188,17 +188,17 @@ export default function BookService() {
       const serviceDetails = services.find(s => s.id === selectedService);
       if (serviceDetails) {
         const price = parseFloat(serviceDetails.price);
-        
+
         // Generate a transaction UUID
         const transactionUuid = uuidv4();
-        
+
         // Create success and failure URLs
         const origin = window.location.origin;
-        
+
         // Use clean URLs for eSewa as per documentation
         const successUrl = `${origin}/api/payments/esewa/success`;
         const failureUrl = `${origin}/dashboard/user/bookings/failure`;
-        
+
         // Save the transaction information in the notes field since there's no dedicated field
         await fetch(`/api/appointments/${appointment.id}`, {
           method: "PATCH",
@@ -209,10 +209,10 @@ export default function BookService() {
             notes: notes ? `${notes}\nTransaction ID: ${transactionUuid}` : `Transaction ID: ${transactionUuid}`
           }),
         });
-        
+
         // Calculate amount based on payment type
         const paymentAmount = paymentType === "HALF" ? Math.round(price * 0.5) : Math.round(price);
-        
+
         // Use the new createEsewaFormData function from esewa-utils
         const formData = createEsewaFormData(
           paymentAmount, // Use calculated amount based on payment type
@@ -221,7 +221,7 @@ export default function BookService() {
           failureUrl,
           appointment.id // Pass the appointment ID as the payment_id
         );
-        
+
         console.log("Generated eSewa params:", formData);
         setEsewaParams(formData);
         setShowPaymentForm(true);
@@ -501,7 +501,11 @@ export default function BookService() {
                   <Calendar
                     mode="single"
                     selected={date}
-                    onSelect={setDate}
+                    onSelect={(newDate) => {
+                      setDate(newDate);
+                      // Reset time slot when date changes to avoid keeping a potentially invalid selection
+                      setTimeSlot(null);
+                    }}
                     className="rounded-md border"
                     disabled={(date) => {
                       // Disable past dates and Sundays
@@ -523,16 +527,51 @@ export default function BookService() {
                 </CardHeader>
                 <CardContent>
                   <div className="grid grid-cols-3 gap-2">
-                    {timeSlots.map((time) => (
-                      <Button
-                        key={time}
-                        variant={timeSlot === time ? "default" : "outline"}
-                        className="w-full"
-                        onClick={() => setTimeSlot(time)}
-                      >
-                        {time}
-                      </Button>
-                    ))}
+                    {timeSlots.map((time) => {
+                      // Check if this time slot is in the past for the current day
+                      let isDisabled = false;
+
+                      if (date) {
+                        // Check if selected date is today
+                        const today = new Date();
+                        const isToday = date.getDate() === today.getDate() &&
+                          date.getMonth() === today.getMonth() &&
+                          date.getFullYear() === today.getFullYear();
+
+                        if (isToday) {
+                          // Parse the time slot to check if it's in the past
+                          const [hourStr, minuteStr, period] = time.match(/(\d+):(\d+) ([AP]M)/).slice(1);
+                          let hour = parseInt(hourStr);
+                          const minute = parseInt(minuteStr);
+
+                          // Convert to 24-hour format
+                          if (period === "PM" && hour < 12) {
+                            hour += 12;
+                          } else if (period === "AM" && hour === 12) {
+                            hour = 0;
+                          }
+
+                          // Create a date object for this time slot
+                          const timeSlotDate = new Date();
+                          timeSlotDate.setHours(hour, minute, 0, 0);
+
+                          // Compare with current time
+                          isDisabled = timeSlotDate <= today;
+                        }
+                      }
+
+                      return (
+                        <Button
+                          key={time}
+                          variant={timeSlot === time ? "default" : "outline"}
+                          className="w-full"
+                          onClick={() => setTimeSlot(time)}
+                          disabled={isDisabled}
+                        >
+                          {time}
+                        </Button>
+                      );
+                    })}
                   </div>
                 </CardContent>
               </Card>
@@ -584,7 +623,7 @@ export default function BookService() {
                           </div>
                         </Label>
                       </div>
-                      
+
                       <div>
                         <RadioGroupItem
                           value="HALF"
@@ -657,7 +696,7 @@ export default function BookService() {
                         Rs{selectedServiceDetails?.price}
                       </span>
                     </div>
-                    
+
                     {paymentType === "HALF" && (
                       <div className="flex justify-between text-sm mt-4 pt-2 border-t">
                         <span>To pay now (50%)</span>
@@ -705,11 +744,11 @@ export default function BookService() {
           </div>
         </div>
       </div>
-      
+
       {/* eSewa Payment Form */}
       {showPaymentForm && esewaParams && (
-        <EsewaPaymentForm 
-          params={esewaParams} 
+        <EsewaPaymentForm
+          params={esewaParams}
           onPaymentInitiated={() => {
             toast.info("Redirecting to eSewa payment gateway...");
           }}

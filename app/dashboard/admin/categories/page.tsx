@@ -20,6 +20,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { useRouter } from "next/navigation";
 
 interface Category {
   id: string;
@@ -32,6 +33,7 @@ export default function CategoriesPage() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
   const [categoryName, setCategoryName] = useState("");
+  const router = useRouter();
 
   useEffect(() => {
     fetchCategories();
@@ -93,7 +95,7 @@ export default function CategoriesPage() {
     if (!confirm("Are you sure you want to delete this category?")) return;
 
     try {
-      const response = await fetch(`/api/categories/Rs{id}`, {
+      const response = await fetch(`/api/categories/${id}`, {
         method: "DELETE",
       });
 
@@ -116,47 +118,57 @@ export default function CategoriesPage() {
               Manage your product categories
             </p>
           </div>
-          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-            <DialogTrigger asChild>
-              <Button
-                onClick={() => {
-                  setEditingCategory(null);
-                  setCategoryName("");
-                }}
-              >
-                <Plus className="w-4 h-4 mr-2" />
-                Add Category
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>
-                  {editingCategory ? "Edit Category" : "Add New Category"}
-                </DialogTitle>
-              </DialogHeader>
-              <form onSubmit={handleSubmit} className="space-y-4">
-                <div>
-                  <Input
-                    placeholder="Category name"
-                    value={categoryName}
-                    onChange={(e) => setCategoryName(e.target.value)}
-                  />
-                </div>
-                <div className="flex justify-end gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => setIsDialogOpen(false)}
-                  >
-                    Cancel
-                  </Button>
-                  <Button type="submit">
-                    {editingCategory ? "Update" : "Create"}
-                  </Button>
-                </div>
-              </form>
-            </DialogContent>
-          </Dialog>
+          <div className="flex gap-2">
+            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+              <DialogTrigger asChild>
+                <Button
+                  onClick={() => {
+                    setEditingCategory(null);
+                    setCategoryName("");
+                  }}
+                >
+                  <Plus className="w-4 h-4 mr-2" />
+                  Add Category
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>
+                    {editingCategory ? "Edit Category" : "Add New Category"}
+                  </DialogTitle>
+                </DialogHeader>
+                <form onSubmit={handleSubmit} className="space-y-4">
+                  <div>
+                    <Input
+                      placeholder="Category name"
+                      value={categoryName}
+                      onChange={(e) => setCategoryName(e.target.value)}
+                    />
+                  </div>
+                  <div className="flex justify-end gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setIsDialogOpen(false)}
+                    >
+                      Cancel
+                    </Button>
+                    <Button type="submit">
+                      {editingCategory ? "Update" : "Create"}
+                    </Button>
+                  </div>
+                </form>
+              </DialogContent>
+            </Dialog>
+
+            <Button
+              variant="default"
+              onClick={() => router.push("/dashboard/admin/products/new")}
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              Add Product
+            </Button>
+          </div>
         </div>
 
         {isLoading ? (

@@ -13,9 +13,9 @@ model User {
   clerkId      String?       @unique // Clerk user ID for authentication
   name         String        // Full name of the user
   email        String        @unique // Email of the user
-  phone        String?       @unique // Optional phone number for the user
+  phoneNumber       String?       
   profileImage String?       // Optional URL for profile image
-  role         String        // Role assigned to the user (e.g., CUSTOMER, ADMIN, STAFF)
+  role         String        // Role assigned to the user (e.g., CUSTOMER, ADMIN, EMPLOYEE)
   createdAt    DateTime      @default(now()) // Account creation timestamp
   updatedAt    DateTime      @updatedAt // Last update timestamp
   appointments Appointment[] // Appointments for Car Wash services
@@ -23,8 +23,10 @@ model User {
   payments     Payment[]     // Payments made by the user
   reviews      Review[]      // Reviews given by the user for services
   orders       Order[]       // Orders placed by the user in the e-commerce system
-  staff        Staff?        // Staff profile if the user is a staff member
-  staffReviews StaffReview[] // Reviews written by the user
+  employee     Employee?     // Employee profile if the user is a staff member
+  employeeReviews EmployeeReview[] // Reviews written by the user
+  address String?   
+  notifications Notification[] 
 }
 
 // Service model for car wash (includes the services offered)
@@ -60,8 +62,8 @@ model Appointment {
   serviceId          String     // ID of the selected service
   vehicle            Vehicle    @relation(fields: [vehicleId], references: [id]) // Vehicle linked to the appointment
   vehicleId          String     // ID of the vehicle
-  staff              Staff?     @relation(fields: [staffId], references: [id]) // Staff member assigned to the appointment
-  staffId            String?    // ID of the staff member (optional)
+  employee           Employee?  @relation(fields: [employeeId], references: [id]) // Employee assigned to the appointment
+  employeeId         String?    // ID of the employee (optional)
   date               DateTime   // Date of the appointment
   timeSlot           String     // Time slot for the appointment
   status             String     @default("PENDING") // Status of the appointment
@@ -70,9 +72,10 @@ model Appointment {
   paymentStatus      String     @default("PENDING") // Payment status (PENDING, HALF_PAID, PAID, etc.)
   paymentMethod      String     // Payment method used (e.g., PAYPAL, UPI, CREDIT_CARD, ESEWA)
   paymentType        String     @default("FULL") // Payment type (FULL or HALF)
-  needsStaffAssignment Boolean    @default(true) // Flag indicating if a staff assignment is needed
+  needsEmployeeAssignment Boolean    @default(true) // Flag indicating if an employee assignment is needed
   payment            Payment?   // Payment associated with this appointment
   createdAt          DateTime   @default(now()) // Appointment creation timestamp
+  phoneNumber String // Phone number for the appointment (required)
   updatedAt          DateTime   @updatedAt // Last update timestamp
 }
 
@@ -132,19 +135,23 @@ model Category {
 
 // Order model (E-commerce orders made by customers)
 model Order {
-  id            String      @id @default(uuid()) // Unique ID for the order
-  user          User        @relation(fields: [userId], references: [id]) // User who placed the order
-  userId        String      // User ID
-  totalAmount   Decimal     // Total amount of the order
-  status        String      @default("PENDING") // Status of the order (PENDING, SHIPPED, etc.)
-  paymentStatus String      @default("PENDING") // Payment status of the order
-  paymentMethod String      // Payment method used for the order
-  transactionId String?     // Transaction ID for tracking
-  createdAt     DateTime    @default(now()) // Order creation timestamp
-  updatedAt     DateTime    @updatedAt // Last update timestamp
-  items         OrderItem[] // Items in the order
-  payment       Payment?    // Payment associated with the order
+  id             String      @id @default(uuid()) // Unique ID for the order
+  user           User        @relation(fields: [userId], references: [id]) // User who placed the order
+  userId         String      // User ID
+  totalAmount    Decimal     // Total amount of the order
+  status         String      @default("PENDING") // Status of the order (PENDING, SHIPPED, etc.)
+  paymentStatus  String      @default("PENDING") // Payment status of the order
+  paymentMethod  String      // Payment method used for the order
+  transactionId  String?     // Transaction ID for tracking
+  address        String      // Address for the order (required)
+  phoneNumber    String      // Phone number for the order (required)
+  description    String?     // Optional description/instructions
+  createdAt      DateTime    @default(now()) // Order creation timestamp
+  updatedAt      DateTime    @updatedAt // Last update timestamp
+  items          OrderItem[] // Items in the order
+  payment        Payment?    // Payment associated with the order
 }
+
 
 // OrderItem model (Products in each e-commerce order)
 model OrderItem {
@@ -159,27 +166,27 @@ model OrderItem {
   updatedAt DateTime @updatedAt // Last update timestamp
 }
 
-// Staff model (Staff working on appointments for Car Wash)
-model Staff {
-  id           String        @id @default(uuid()) // Unique ID for the staff member
+// Employee model (Employees working on appointments for Car Wash)
+model Employee {
+  id           String        @id @default(uuid()) // Unique ID for the employee
   user         User          @relation(fields: [userId], references: [id]) // Link to User model
-  userId       String        @unique // User ID that this staff member is linked to
-  role         String        // Role of the staff member (CLEANER, MANAGER, ADMIN)
-  averageRating Float        @default(0) // Average rating of the staff member
+  userId       String        @unique // User ID that this employee is linked to
+  role         String        // Role of the employee (CLEANER, MANAGER, ADMIN)
+  averageRating Float        @default(0) // Average rating of the employee
   totalReviews Int          @default(0) // Total number of reviews received
-  createdAt    DateTime      @default(now()) // Timestamp when staff was created
+  createdAt    DateTime      @default(now()) // Timestamp when employee was created
   updatedAt    DateTime      @updatedAt // Last update timestamp
-  appointments Appointment[] // Appointments handled by the staff member
-  reviews      StaffReview[] // Reviews received by the staff member
+  appointments Appointment[] // Appointments handled by the employee
+  reviews      EmployeeReview[] // Reviews received by the employee
 }
 
-// StaffReview model (Customer reviews for staff members)
-model StaffReview {
+// EmployeeReview model (Customer reviews for employees)
+model EmployeeReview {
   id        String   @id @default(uuid()) // Unique ID for the review
   user      User     @relation(fields: [userId], references: [id]) // User who wrote the review
   userId    String   // User ID
-  staff     Staff    @relation(fields: [staffId], references: [id]) // Staff member being reviewed
-  staffId   String   // Staff ID
+  employee  Employee @relation(fields: [employeeId], references: [id]) // Employee being reviewed
+  employeeId String   // Employee ID
   rating    Int      // Rating given by the user (1-5 stars)
   comment   String?  // Optional comment for the review
   createdAt DateTime @default(now()) // Timestamp when the review was created
@@ -197,4 +204,15 @@ model Review {
   comment   String?  // Optional comment for the review
   createdAt DateTime @default(now()) // Timestamp when the review was created
   updatedAt DateTime @updatedAt // Last update timestamp
+}
+
+model Notification {
+  id          String   @id @default(uuid()) // Unique ID for the notification
+  user        User     @relation(fields: [userId], references: [id]) // User receiving the notification
+  userId      String   // ID of the user
+  title       String   // Short title of the notification
+  message     String   // Detailed message body
+  type        String   // Type of notification (e.g., APPOINTMENT, ORDER, PAYMENT)
+  isRead      Boolean  @default(false) // Whether the notification has been read
+  createdAt   DateTime @default(now()) // Timestamp when the notification was created
 }

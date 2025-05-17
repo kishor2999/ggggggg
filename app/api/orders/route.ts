@@ -4,10 +4,27 @@ import prisma from '@/lib/db';
 
 export async function POST(request: Request) {
   try {
-    const { userId: clerkId } = await auth();
+    const { userId: clerkId, sessionClaims } = await auth();
     
     if (!clerkId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    // Define metadata type
+    type UserMetadata = {
+      role?: "customer" | "employee" | "admin";
+    };
+
+    // Get user role from session claims
+    const metadata = (sessionClaims?.metadata as UserMetadata) || {};
+    const role = metadata.role;
+
+    // Check if user is admin and prevent order creation
+    if (role === "admin") {
+      return NextResponse.json(
+        { error: 'Administrators cannot place orders' },
+        { status: 403 }
+      );
     }
 
     // Find the database user that corresponds to the Clerk user
@@ -40,7 +57,7 @@ export async function POST(request: Request) {
     }
     */
 
-    const { items, totalAmount } = await request.json();
+    const { items, totalAmount, address, phoneNumber, description } = await request.json();
 
     if (!items || !items.length || !totalAmount) {
       return NextResponse.json(
@@ -73,6 +90,9 @@ export async function POST(request: Request) {
         status: 'PENDING',
         paymentStatus: 'PENDING',
         paymentMethod: 'ESEWA',
+        address: address || 'Not provided',
+        phoneNumber: phoneNumber || 'Not provided',
+        description: description,
         items: {
           create: items.map((item: any) => ({
             product: { connect: { id: item.productId } },

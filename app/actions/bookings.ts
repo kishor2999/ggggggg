@@ -8,7 +8,11 @@ export async function getBookings() {
         user: true,
         service: true,
         vehicle: true,
-        staff: true,
+        employee: {
+          include: {
+            user: true
+          }
+        },
       },
       orderBy: {
         date: 'desc',

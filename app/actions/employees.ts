@@ -1,7 +1,7 @@
 "use server"
 import prisma from "@/lib/db"
 
-export type StaffWithUser = {
+export type EmployeeWithUser = {
   id: string
   role: string
   averageRating: number
@@ -12,7 +12,7 @@ export type StaffWithUser = {
     id: string
     name: string
     email: string
-    phone: string | null
+    phoneNumber: string | null
     profileImage: string | null
   }
   reviews?: {
@@ -27,16 +27,16 @@ export type StaffWithUser = {
   }[]
 }
 
-export async function getStaff() {
+export async function getEmployees() {
   try {
-    const staff = await prisma.staff.findMany({
+    const employees = await prisma.employee.findMany({
       include: {
         user: {
           select: {
             id: true,
             name: true,
             email: true,
-            phone: true,
+            phoneNumber: true,
             profileImage: true,
           },
         },
@@ -63,16 +63,35 @@ export async function getStaff() {
       },
     })
 
-    return staff
+    // Process employees to ensure user data consistency
+    const processedEmployees = employees.map(employee => {
+      if (!employee.user) {
+        // Provide default user data if missing
+        return {
+          ...employee,
+          user: {
+            id: 'unknown',
+            name: `Employee ${employee.id.substring(0, 5)}`,
+            email: '',
+            phoneNumber: null,
+            profileImage: null
+          }
+        };
+      }
+      return employee;
+    });
+
+    return processedEmployees;
   } catch (error) {
-    console.error("Error fetching staff:", error)
-    throw new Error("Failed to fetch staff members")
+    console.error("Error fetching employees:", error);
+    // Return empty array instead of throwing error
+    return [];
   }
 }
 
-export async function getStaffById(id: string) {
+export async function getEmployeeById(id: string) {
   try {
-    const staff = await prisma.staff.findUnique({
+    const employee = await prisma.employee.findUnique({
       where: { id },
       include: {
         user: {
@@ -80,7 +99,7 @@ export async function getStaffById(id: string) {
             id: true,
             name: true,
             email: true,
-            phone: true,
+            phoneNumber: true,
             profileImage: true,
           },
         },
@@ -114,23 +133,23 @@ export async function getStaffById(id: string) {
       },
     })
 
-    if (!staff) {
-      throw new Error("Staff member not found")
+    if (!employee) {
+      throw new Error("Employee not found")
     }
 
-    return staff
+    return employee
   } catch (error) {
-    console.error("Error fetching staff member:", error)
-    throw new Error("Failed to fetch staff member")
+    console.error("Error fetching employee:", error)
+    throw new Error("Failed to fetch employee")
   }
 }
 
-export async function createStaffReview(staffId: string, userId: string, rating: number, comment?: string) {
+export async function createEmployeeReview(employeeId: string, userId: string, rating: number, comment?: string) {
   try {
     // Create the review
-    const review = await prisma.staffReview.create({
+    const review = await prisma.employeeReview.create({
       data: {
-        staffId,
+        employeeId,
         userId,
         rating,
         comment,
@@ -145,24 +164,24 @@ export async function createStaffReview(staffId: string, userId: string, rating:
       },
     })
 
-    // Update staff's average rating and total reviews
-    const staff = await prisma.staff.findUnique({
-      where: { id: staffId },
+    // Update employee's average rating and total reviews
+    const employee = await prisma.employee.findUnique({
+      where: { id: employeeId },
       include: {
         reviews: true,
       },
     })
 
-    if (!staff) {
-      throw new Error("Staff member not found")
+    if (!employee) {
+      throw new Error("Employee member not found")
     }
 
-    const totalRating = staff.reviews.reduce((sum, review) => sum + review.rating, 0) + rating
-    const newTotalReviews = staff.reviews.length + 1
+    const totalRating = employee.reviews.reduce((sum, review) => sum + review.rating, 0) + rating
+    const newTotalReviews = employee.reviews.length + 1
     const newAverageRating = totalRating / newTotalReviews
 
-    await prisma.staff.update({
-      where: { id: staffId },
+    await prisma.employee.update({
+      where: { id: employeeId },
       data: {
         averageRating: newAverageRating,
         totalReviews: newTotalReviews,
@@ -171,26 +190,26 @@ export async function createStaffReview(staffId: string, userId: string, rating:
 
     return review
   } catch (error) {
-    console.error("Error creating staff review:", error)
-    throw new Error("Failed to create staff review")
+    console.error("Error creating employee review:", error)
+    throw new Error("Failed to create employee review")
   }
 }
 
 export async function getEmployeeTasks(userId: string) {
   try {
-    // First get the staff record for this user
-    const staff = await prisma.staff.findFirst({
+    // First get the employee record for this user
+    const employee = await prisma.employee.findFirst({
       where: { userId },
       select: { id: true }
     });
 
-    if (!staff) {
-      throw new Error('Staff member not found');
+    if (!employee) {
+      throw new Error('Employee member not found');
     }
 
     const tasks = await prisma.appointment.findMany({
       where: {
-        staffId: staff.id,
+        employeeId: employee.id,
         date: {
           gte: new Date(new Date().setHours(0, 0, 0, 0)),
           lt: new Date(new Date().setHours(23, 59, 59, 999)),
@@ -215,8 +234,8 @@ export async function getEmployeeTasks(userId: string) {
 
 export async function getEmployeePerformance(userId: string) {
   try {
-    // First get the staff record for this user
-    const staff = await prisma.staff.findFirst({
+    // First get the employee record for this user
+    const employee = await prisma.employee.findFirst({
       where: { userId },
       include: {
         reviews: {
@@ -231,13 +250,13 @@ export async function getEmployeePerformance(userId: string) {
       },
     });
 
-    if (!staff) {
-      throw new Error('Staff member not found');
+    if (!employee) {
+      throw new Error('Employee member not found');
     }
 
     const completedTasks = await prisma.appointment.count({
       where: {
-        staffId: staff.id,
+        employeeId: employee.id,
         status: 'COMPLETED',
         date: {
           gte: new Date(new Date().setHours(0, 0, 0, 0)),
@@ -248,7 +267,7 @@ export async function getEmployeePerformance(userId: string) {
 
     const totalTasks = await prisma.appointment.count({
       where: {
-        staffId: staff.id,
+        employeeId: employee.id,
         date: {
           gte: new Date(new Date().setHours(0, 0, 0, 0)),
           lt: new Date(new Date().setHours(23, 59, 59, 999)),
@@ -257,7 +276,7 @@ export async function getEmployeePerformance(userId: string) {
     });
 
     return {
-      staff,
+      employee,
       completedTasks,
       totalTasks,
     };

@@ -47,7 +47,7 @@ export async function POST(req: Request) {
     const userId = evt.data.id;
     const email = evt.data.email_addresses[0].email_address;
     const name =
-      `Rs{evt.data.first_name || ''} Rs{evt.data.last_name || ''}`.trim();
+      `${evt.data.first_name || ''} ${evt.data.last_name || ''}`.trim();
     const profileImage = evt.data.image_url;
     const phone =
       evt.data.phone_numbers && evt.data.phone_numbers.length > 0
@@ -68,20 +68,19 @@ export async function POST(req: Request) {
         await client.users.updateUserMetadata(userId, {
           publicMetadata: { role: "customer" },
         });
-        console.log(`Assigned role 'customer' to user with ID Rs{userId}`);
+        console.log(`Assigned role 'customer' to user with ID ${userId}`);
 
         await prisma.user.create({
           data: {
             clerkId: userId,
             name: name,
             email: email,
-            phone: phone,
             profileImage: profileImage,
             role: role,
           },
         });
 
-        console.log(`User created in database with Clerk ID Rs{userId}`);
+        console.log(`User created in database with Clerk ID ${userId}`);
       } else if (eventType === "user.updated") {
         const clerkUser = await client.users.getUser(userId);
         if (clerkUser.publicMetadata && clerkUser.publicMetadata.role) {
@@ -93,14 +92,13 @@ export async function POST(req: Request) {
           data: {
             name: name,
             email: email,
-            phone: phone,
             profileImage: profileImage,
             role: role,
           },
         });
 
         console.log(
-          `User updated in database with Clerk ID Rs{userId} and role Rs{role}`
+          `User updated in database with Clerk ID ${userId} and role ${role}`
         );
       }
     } catch (error) {

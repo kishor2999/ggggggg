@@ -1,11 +1,6 @@
 import type { Metadata } from 'next'
 import {
   ClerkProvider,
-  SignInButton,
-  SignUpButton,
-  SignedIn,
-  SignedOut,
-  UserButton,
 } from '@clerk/nextjs'
 import './globals.css'
 import { Toaster } from 'sonner'
@@ -25,9 +20,7 @@ export default function RootLayout({
     <ClerkProvider>
       <html lang="en">
         <body className={`antialiased`}>
-          <CartProvider>
-            {children}
-          </CartProvider>
+          {children}
           <Toaster />
         </body>
       </html>

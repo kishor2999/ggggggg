@@ -89,45 +89,29 @@ export function DashboardLayout({ children, userRole }: DashboardLayoutProps) {
 
   const employeeNavItems = [
     { title: "Dashboard", href: "/dashboard/employee", icon: Home },
-    {
-      title: "My Schedule",
-      href: "/dashboard/employee/schedule",
-      icon: Calendar,
-    },
     { title: "Assigned Tasks", href: "/dashboard/employee/tasks", icon: Car },
-    {
-      title: "Performance",
-      href: "/dashboard/employee/performance",
-      icon: BarChart3,
-    },
-    {
-      title: "Feedback",
-      href: "/dashboard/employee/feedback",
-      icon: MessageSquare,
-    },
-    { title: "Profile", href: "/dashboard/employee/profile", icon: User },
   ];
 
   const navItems =
     userRole === "admin"
       ? adminNavItems
       : userRole === "user"
-      ? userNavItems
-      : employeeNavItems;
+        ? userNavItems
+        : employeeNavItems;
 
   const roleLabel =
     userRole === "admin"
       ? "Administrator"
       : userRole === "user"
-      ? "Customer"
-      : "Employee";
+        ? "Customer"
+        : "Employee";
 
   const userName =
     userRole === "admin"
       ? "John Admin"
       : userRole === "user"
-      ? "Sarah Customer"
-      : "Mike Employee";
+        ? "Sarah Customer"
+        : "Mike Employee";
 
   const handleRoleChange = (value: string) => {
     if (value === "admin") {

@@ -19,6 +19,11 @@ export default async function fetchUserAppointments (){
                     include: {
                         service: true, // Include service data (name, description, etc.)
                         vehicle: true, // Include vehicle data (type, model, plate)
+                        employee: {
+                            include: {
+                                user: true, // Include employee's user data for name
+                            }
+                        },
                     },
                 },
             },
@@ -35,11 +40,24 @@ export default async function fetchUserAppointments (){
             service: {
                 ...appointment.service,
                 price: appointment.service.price.toString()
-            }
+            },
+            employee: appointment.employee ? {
+                ...appointment.employee,
+                name: appointment.employee.user?.name || "Unknown Employee"
+            } : null
         }));
+
+        console.log("Fetched appointments with payment types:", 
+            serializedAppointments.map(a => ({
+                id: a.id, 
+                paymentStatus: a.paymentStatus, 
+                paymentType: a.paymentType
+            }))
+        );
 
         return serializedAppointments;
     } catch (error) {
+        console.error("Error fetching appointments:", error);
         throw new Error("Something went wrong")
     }
 }
