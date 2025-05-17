@@ -59,8 +59,7 @@ export default function OrdersPage() {
     try {
       setLoading(true);
       
-      console.log("Fetching orders data...");
-      const response = await fetch("/api/orders/user", {
+            const response = await fetch("/api/orders/user", {
         // Add cache: 'no-store' to prevent caching
         cache: 'no-store',
         headers: {
@@ -73,8 +72,7 @@ export default function OrdersPage() {
       }
       
       const data = await response.json();
-      console.log("Orders data received:", data.length, "orders");
-      
+            
       // Sort orders with most recent first
       const sortedOrders = data.sort((a: Order, b: Order) => {
         return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
@@ -82,8 +80,7 @@ export default function OrdersPage() {
       
       // Log details of each order for debugging
       sortedOrders.forEach((order: Order) => {
-        console.log(`Order ${order.id.slice(0, 8)}... - Status: ${order.status}, Payment: ${order.paymentStatus}`);
-      });
+              });
       
       setOrders(sortedOrders);
     } catch (error) {

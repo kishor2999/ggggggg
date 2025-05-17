@@ -27,14 +27,11 @@ export default function PaymentSuccessPage() {
     // Only run on client-side
     if (typeof window === 'undefined') return;
     
-    console.log("SUCCESS PAGE LOADED - Payment completed");
-    
+        
     // Clear the cart
-    console.log("Clearing cart...");
-    try {
+        try {
       clearCart();
-      console.log("Cart cleared successfully");
-    } catch (error) {
+          } catch (error) {
       console.error("Error clearing cart:", error);
     }
     
@@ -43,13 +40,11 @@ export default function PaymentSuccessPage() {
     
     // Get the full raw URL
     const fullUrl = window.location.href;
-    console.log("Full URL:", fullUrl);
-    
+        
     // Check if we need to clear the cart (from query param)
     const shouldClearCart = searchParams?.get("clear_cart") === "true";
     if (shouldClearCart) {
-      console.log("clear_cart parameter detected, ensuring cart is cleared");
-      clearCart();
+            clearCart();
     }
     
     // Extract order_id before any second question mark
@@ -57,12 +52,10 @@ export default function PaymentSuccessPage() {
     const orderIdMatch = fullUrl.match(/order_id=([^?&]+)/);
     if (orderIdMatch && orderIdMatch[1]) {
       id = orderIdMatch[1];
-      console.log("Extracted order ID:", id);
-    } else {
+          } else {
       // Fallback to searchParams
       id = searchParams?.get("order_id");
-      console.log("Using searchParams order ID:", id);
-    }
+          }
     
     // Extract reference if it exists
     const reference = searchParams.get("reference");
@@ -70,8 +63,7 @@ export default function PaymentSuccessPage() {
     // Extract any encoded data (could be after a second question mark)
     const dataMatch = fullUrl.match(/[?&]data=([^&]+)/);
     const encodedData = dataMatch ? dataMatch[1] : null;
-    console.log("Found data parameter:", encodedData ? "yes" : "no");
-    
+        
     if (id) {
       setOrderDetails({
         id,
@@ -82,8 +74,7 @@ export default function PaymentSuccessPage() {
       // Fetch order details if we have an ID
       const fetchOrderDetails = async () => {
         try {
-          console.log(`Fetching order details for ID: ${id}`);
-          const response = await fetch(`/api/orders/${id}`);
+                    const response = await fetch(`/api/orders/${id}`);
           if (response.ok) {
             const data = await response.json();
             setOrderDetails({

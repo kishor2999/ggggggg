@@ -25,8 +25,7 @@ export default function TestNotifications() {
       
       setTestResults(data);
       toast.success("Test notification sent");
-      console.log("Test notification response:", data);
-    } catch (error) {
+          } catch (error) {
       console.error("Error sending test notification:", error);
       toast.error("Failed to send test notification");
       setTestResults({ error });

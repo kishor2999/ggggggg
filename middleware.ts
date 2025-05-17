@@ -26,7 +26,7 @@ export default clerkMiddleware(async (auth, req) => {
 
   // 🚀 If user is not logged in, redirect to sign in
   if (!userId) {
-    console.log("Redirecting to Sign In due to missing userId")
+   
     return redirectToSignIn()
   }
   

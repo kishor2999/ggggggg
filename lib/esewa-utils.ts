@@ -24,16 +24,14 @@ export function generateSignature(
   // Format: "total_amount=100,transaction_uuid=11-201-13,product_code=EPAYTEST"
   const signatureInput = `total_amount=${total_amount},transaction_uuid=${transaction_uuid},product_code=${product_code}`;
   
-  console.log("Signature input for generation:", signatureInput);
-  
+    
   // Generate HMAC-SHA256 signature
   const hmac = crypto.createHmac("sha256", ESEWA_CONFIG.SECRET_KEY);
   hmac.update(signatureInput);
   
   // Return base64 encoded signature
   const signature = hmac.digest("base64");
-  console.log("Generated signature:", signature);
-  
+    
   return signature;
 }
 
@@ -56,16 +54,13 @@ export function verifySignature(data: any): boolean {
   const signatureInputParts = fieldsToSign.map((field: string) => `${field}=${data[field]}`);
   const signatureInput = signatureInputParts.join(",");
   
-  console.log("Signature input for verification:", signatureInput);
-  
+    
   // Generate HMAC-SHA256 signature for verification
   const hmac = crypto.createHmac("sha256", ESEWA_CONFIG.SECRET_KEY);
   hmac.update(signatureInput);
   const calculatedSignature = hmac.digest("base64");
   
-  console.log("Received signature:", signature);
-  console.log("Calculated signature:", calculatedSignature);
-  
+      
   // Compare the received signature with calculated signature
   return signature === calculatedSignature;
 }

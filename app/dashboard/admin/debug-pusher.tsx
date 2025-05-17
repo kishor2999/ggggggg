@@ -29,13 +29,11 @@ export default function DebugPusher() {
 
     // Subscribe to the specified channel
     try {
-      console.log(`Subscribing to channel: ${listenChannel}`);
-      const channel = pusherClient.subscribe(listenChannel);
+            const channel = pusherClient.subscribe(listenChannel);
 
       // Bind to all events - we want to see everything for debugging
       const handleEvent = (eventName: string, data: any) => {
-        console.log(`Received event ${eventName} on channel ${listenChannel}:`, data);
-        setReceivedMessages(prev => [
+                setReceivedMessages(prev => [
           {
             timestamp: new Date().toISOString(),
             channel: listenChannel,
@@ -65,8 +63,7 @@ export default function DebugPusher() {
 
       // Cleanup function
       return () => {
-        console.log(`Unsubscribing from channel: ${listenChannel}`);
-        channel.unbind_all();
+                channel.unbind_all();
         pusherClient.unsubscribe(listenChannel);
       };
     } catch (error) {
@@ -110,8 +107,7 @@ export default function DebugPusher() {
         toast.success("Message sent successfully!", {
           description: `Channel: ${channel}, Event: ${event}`,
         });
-        console.log("Pusher message sent:", data);
-      } else {
+              } else {
         toast.error("Failed to send message");
         console.error("Error:", data);
       }

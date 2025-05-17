@@ -20,8 +20,7 @@ const mapStatus = (dbStatus: string): string => {
 
 export async function getEmployeeTasks(userId: string) {
   try {
-    console.log("Fetching tasks for user ID:", userId);
-
+    
     // First, let's check if the user exists
     const user = await prisma.user.findFirst({
       where: {
@@ -30,12 +29,10 @@ export async function getEmployeeTasks(userId: string) {
     });
 
     if (!user) {
-      console.log("User not found with clerkId:", userId);
-      throw new Error("User not found");
+            throw new Error("User not found");
     }
 
-    console.log("Found user:", user.id);
-
+    
     // Find the employee associated with the user
     const employee = await prisma.employee.findFirst({
       where: {
@@ -60,13 +57,10 @@ export async function getEmployeeTasks(userId: string) {
     });
 
     if (!employee) {
-      console.log("Employee not found for user:", user.id);
-      throw new Error("Employee not found");
+            throw new Error("Employee not found");
     }
 
-    console.log("Found employee:", employee.id);
-    console.log("Number of appointments:", employee.appointments.length);
-
+        
     // Log each appointment's details
 
     // Transform appointments into tasks
@@ -136,10 +130,7 @@ export async function updateTaskStatus(
       }
     };
 
-    console.log(
-      `Updating task ${taskId} status to ${status} (DB status: ${mapToDbStatus(status)})`
-    );
-
+    
     // Update the appointment status
     const updatedAppointment = await prisma.appointment.update({
       where: {
@@ -158,8 +149,7 @@ export async function updateTaskStatus(
       },
     });
 
-    console.log("Appointment updated:", updatedAppointment);
-    revalidatePath("/dashboard/employee/tasks");
+        revalidatePath("/dashboard/employee/tasks");
     return updatedAppointment;
   } catch (error) {
     console.error("Error updating task status:", error);

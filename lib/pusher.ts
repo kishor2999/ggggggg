@@ -52,7 +52,8 @@ export const EVENT_TYPES = {
   PAYMENT_RECEIVED: 'payment-received',
   SERVICE_COMPLETED: 'service-completed',
   BOOKING_CANCELLED: 'booking-cancelled',
-  TASK_ASSIGNED: 'task-assigned'
+  TASK_ASSIGNED: 'task-assigned',
+  TIMESLOT_AVAILABILITY_UPDATED: 'timeslot-availability-updated'
 };
 
 // Helper functions for channel names
@@ -70,4 +71,11 @@ export function getEmployeeChannel(employeeId: string) {
 
 export function getBookingChannel(bookingId: string) {
   return `${CHANNEL_TYPES.BOOKING}-${bookingId}`;
+}
+
+// Add a function to get the channel for date-specific availability updates
+export function getDateAvailabilityChannel(date: Date) {
+  // Format date as YYYY-MM-DD to use as channel name
+  const formattedDate = date.toISOString().split('T')[0];
+  return `availability-${formattedDate}`;
 } 

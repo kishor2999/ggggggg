@@ -158,8 +158,7 @@ export function NotificationDebug() {
                     <div className="flex space-x-2 mt-4">
                         <Button
                             onClick={() => {
-                                console.log("Current notifications:", notifications);
-                                toast.info(`${notifications.length} notifications available`);
+                                                                toast.info(`${notifications.length} notifications available`);
                             }}
                             variant="outline"
                         >
@@ -169,8 +168,7 @@ export function NotificationDebug() {
                         <Button
                             onClick={() => {
                                 // Check if Pusher is working by logging the connection
-                                console.log("Pusher connection status:", pusherClient.connection.state);
-                                toast.info(`Pusher: ${pusherClient.connection.state}`);
+                                                                toast.info(`Pusher: ${pusherClient.connection.state}`);
                             }}
                             variant="outline"
                         >

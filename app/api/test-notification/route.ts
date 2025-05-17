@@ -80,8 +80,7 @@ export async function POST(req: Request) {
       }
     });
     
-    console.log("Created notification:", notification);
-    
+        
     // Trigger Pusher event for real-time notification
     await pusherServer.trigger(`user-${user.id}`, 'new-notification', {
       id: notification.id,
@@ -91,8 +90,7 @@ export async function POST(req: Request) {
       createdAt: notification.createdAt
     });
     
-    console.log(`Triggered pusher event on channel user-${user.id}`);
-    
+        
     // Also trigger a general channel for the user role
     await pusherServer.trigger(`${userRole.toLowerCase()}-notifications`, 'new-notification', {
       id: notification.id,
@@ -102,8 +100,7 @@ export async function POST(req: Request) {
       createdAt: notification.createdAt
     });
     
-    console.log(`Triggered pusher event on channel ${userRole.toLowerCase()}-notifications`);
-    
+        
     return NextResponse.json({
       success: true,
       message: `Test notification sent to ${userRole}`,

@@ -1,15 +1,14 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { getUsers, updateUserRole } from "@/app/actions/users"
 import { DashboardLayout } from "@/components/dashboard-layout"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Badge } from "@/components/ui/badge"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Search, User, Users } from "lucide-react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { getUsers, updateUserRole } from "@/app/actions/users"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Search, User, Users } from "lucide-react"
+import { useEffect, useState } from "react"
 import { toast } from "sonner"
 
 interface User {
@@ -197,4 +196,3 @@ export default function UsersPage() {
     </DashboardLayout>
   )
 }
-

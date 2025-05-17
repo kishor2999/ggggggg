@@ -17,8 +17,7 @@ export function EsewaPaymentForm({ params, onPaymentInitiated }: EsewaPaymentFor
       if (onPaymentInitiated) {
         onPaymentInitiated();
       }
-      console.log("Submitting eSewa form with params:", params);
-      formRef.current.submit();
+            formRef.current.submit();
     }
   }, [params, onPaymentInitiated]);
 

@@ -190,8 +190,7 @@ export default function CheckoutPage() {
         description: description, // Add optional description
       };
 
-      console.log("Creating order with data:", requestData);
-
+      
       // Create temporary order
       const response = await fetch("/api/orders", {
         method: "POST",
@@ -208,8 +207,7 @@ export default function CheckoutPage() {
       }
 
       const orderData = await response.json();
-      console.log("Order created:", orderData);
-      const orderId = orderData.id;
+            const orderId = orderData.id;
       setOrderId(orderId);
 
       // Create eSewa form data according to documentation
@@ -237,8 +235,7 @@ export default function CheckoutPage() {
         orderId // Pass the order ID for reference
       );
 
-      console.log("eSewa payment parameters:", esewaParams);
-      setEsewaParams(esewaParams);
+            setEsewaParams(esewaParams);
       setShowPaymentForm(true);
     } catch (error) {
       console.error("Error initializing payment:", error);

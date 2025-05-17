@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { DashboardLayout } from "@/components/dashboard-layout";
 import {  Card,  CardContent,  CardDescription,  CardHeader,  CardTitle,} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -56,16 +56,34 @@ import { getServices } from "@/app/actions/services";
 import { updateAppointment } from "@/app/actions/appointments";
 import { getEmployees } from "@/app/actions/employees";
 import { toast } from "sonner";
+import { getTimeSlotAvailability } from "@/app/actions/bookings";
+import { EVENT_TYPES, getDateAvailabilityChannel, pusherClient } from "@/lib/pusher";
 
-// Add this helper function at the top of the file after imports
+// Improve the formatTimeSlot function to be more robust
 const formatTimeSlot = (timeSlot: string | undefined) => {
   if (!timeSlot) return "";
   try {
-    // If timeSlot is already in HH:mm format, return formatted
-    if (timeSlot.match(/^\d{2}:\d{2}$/)) {
-      return format(parse(timeSlot, "HH:mm", new Date()), "h:mm a");
+    // If timeSlot is already in HH:mm format (24-hour), convert to 12-hour
+    if (timeSlot.match(/^\d{1,2}:\d{2}$/)) {
+      const [hourStr, minuteStr] = timeSlot.split(':');
+      let hour = parseInt(hourStr);
+      const minute = parseInt(minuteStr);
+      const period = hour >= 12 ? 'PM' : 'AM';
+      hour = hour % 12 || 12; // Convert 0 to 12 for 12 AM
+      return `${hour}:${minute.toString().padStart(2, '0')} ${period}`;
     }
-    // If timeSlot is already in AM/PM format, return as is
+    
+    // If timeSlot is already in h:mm a format (12-hour), make sure it's formatted consistently
+    const matches = timeSlot.match(/(\d+):(\d+)\s?(AM|PM|am|pm)/i);
+    if (matches) {
+      const [_, hourStr, minuteStr, periodStr] = matches;
+      const hour = parseInt(hourStr);
+      const minute = parseInt(minuteStr);
+      const period = periodStr.toUpperCase();
+      return `${hour}:${minute.toString().padStart(2, '0')} ${period}`;
+    }
+    
+    // If we couldn't parse it, return as is
     return timeSlot;
   } catch (error) {
     console.error("Error formatting time:", error);
@@ -121,6 +139,8 @@ export default function AdminBookings() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [debugInfo, setDebugInfo] = useState<any>(null);
+  const [timeSlotAvailability, setTimeSlotAvailability] = useState<Record<string, number>>({});
+  const currentChannelRef = useRef<string | null>(null);
 
   useEffect(() => {
     const loadData = async () => {
@@ -227,6 +247,16 @@ export default function AdminBookings() {
     loadData();
   }, []);
 
+  // Add a new useEffect for Pusher cleanup
+  useEffect(() => {
+    return () => {
+      if (currentChannelRef.current) {
+        pusherClient.unsubscribe(currentChannelRef.current);
+        currentChannelRef.current = null;
+      }
+    };
+  }, []);
+
   // Filter bookings based on search query and filters
   const filteredBookings = bookings.filter((booking) => {
     // Search query filter
@@ -271,6 +301,106 @@ export default function AdminBookings() {
     setSelectedBooking(bookingData);
   };
 
+  // Update the loadTimeSlotAvailability function
+  const loadTimeSlotAvailability = async (selectedDate: Date) => {
+    try {
+      if (!selectedDate) return;
+      
+      const availability = await getTimeSlotAvailability(selectedDate);
+      console.log("Time slot availability raw data:", availability);
+      
+      // Create a normalized version of the availability data that handles both formats
+      const normalizedAvailability: Record<string, number> = {};
+      
+      // Process each time slot in the availability data
+      Object.entries(availability).forEach(([dbTimeSlot, count]) => {
+        // Store original format
+        normalizedAvailability[dbTimeSlot] = count;
+        
+        // Also store 12-hour format version
+        try {
+          // If it's in 24-hour format, also store 12-hour version
+          if (dbTimeSlot.match(/^\d{1,2}:\d{2}$/)) {
+            const formatted = formatTimeSlot(dbTimeSlot);
+            normalizedAvailability[formatted] = count;
+          }
+          
+          // If it's in 12-hour format, also store 24-hour version
+          const matches = dbTimeSlot.match(/(\d+):(\d+)\s(AM|PM)/i);
+          if (matches) {
+            const [_, hourStr, minuteStr, period] = matches;
+            let hour = parseInt(hourStr);
+            if (period.toUpperCase() === "PM" && hour < 12) hour += 12;
+            if (period.toUpperCase() === "AM" && hour === 12) hour = 0;
+            const dbFormat = `${hour.toString().padStart(2, '0')}:${minuteStr}`;
+            normalizedAvailability[dbFormat] = count;
+          }
+        } catch (e) {
+          console.error("Error normalizing time format:", e);
+        }
+      });
+      
+      console.log("Normalized availability data:", normalizedAvailability);
+      setTimeSlotAvailability(normalizedAvailability);
+      
+      // Subscribe to real-time updates for this date
+      const dateChannel = getDateAvailabilityChannel(selectedDate);
+      
+      // Unsubscribe from previous channel if exists
+      if (currentChannelRef.current && currentChannelRef.current !== dateChannel) {
+        pusherClient.unsubscribe(currentChannelRef.current);
+      }
+      
+      // Subscribe to new channel
+      const channel = pusherClient.subscribe(dateChannel);
+      currentChannelRef.current = dateChannel;
+      
+      // Handle availability updates
+      channel.bind(EVENT_TYPES.TIMESLOT_AVAILABILITY_UPDATED, (data: any) => {
+        console.log("Received real-time availability update:", data);
+        
+        // Normalize the incoming data
+        const normalizedUpdate: Record<string, number> = {};
+        
+        // Process each time slot in the update data
+        Object.entries(data.timeSlotsCount).forEach(([dbTimeSlot, count]) => {
+          // Store original format
+          normalizedUpdate[dbTimeSlot] = count as number;
+          
+          // Also store 12-hour format version
+          try {
+            // If it's in 24-hour format, also store 12-hour version
+            if (dbTimeSlot.match(/^\d{1,2}:\d{2}$/)) {
+              const formatted = formatTimeSlot(dbTimeSlot);
+              normalizedUpdate[formatted] = count as number;
+            }
+            
+            // If it's in 12-hour format, also store 24-hour version
+            const matches = dbTimeSlot.match(/(\d+):(\d+)\s(AM|PM)/i);
+            if (matches) {
+              const [_, hourStr, minuteStr, period] = matches;
+              let hour = parseInt(hourStr);
+              if (period.toUpperCase() === "PM" && hour < 12) hour += 12;
+              if (period.toUpperCase() === "AM" && hour === 12) hour = 0;
+              const dbFormat = `${hour.toString().padStart(2, '0')}:${minuteStr}`;
+              normalizedUpdate[dbFormat] = count as number;
+            }
+          } catch (e) {
+            console.error("Error normalizing time format in update:", e);
+          }
+        });
+        
+        console.log("Normalized update data:", normalizedUpdate);
+        setTimeSlotAvailability(normalizedUpdate);
+      });
+      
+      console.log(`Subscribed to availability updates for date: ${dateChannel}`);
+    } catch (error) {
+      console.error("Error loading time slot availability:", error);
+    }
+  };
+
+  // Update the handleEditBooking function to load availability
   const handleEditBooking = (booking: any) => {
     const bookingData = {
       id: booking.id,
@@ -296,6 +426,11 @@ export default function AdminBookings() {
 
     setBookingToEdit(bookingData);
     setIsEditDialogOpen(true);
+    
+    // Load time slot availability for the booking date
+    if (bookingData.date) {
+      loadTimeSlotAvailability(bookingData.date);
+    }
   };
 
   const getPaymentStatusBadge = (status: string) => {
@@ -356,10 +491,36 @@ export default function AdminBookings() {
 
       // Log payment status before sending
       console.log("Before saving - Payment Status:", bookingToEdit.paymentStatus);
+      console.log("Before saving - Date:", bookingToEdit.date);
+
+      // Get the original booking to compare changes
+      const originalBooking = bookings.find(b => b.id === bookingToEdit.id);
+      
+      // Check if this is a reschedule
+      const isRescheduled = 
+        originalBooking && 
+        (new Date(originalBooking.date).toDateString() !== new Date(bookingToEdit.date).toDateString() || 
+        originalBooking.timeSlot !== bookingToEdit.timeSlot);
+
+      // Fix any timezone issues with the date
+      // Create a new date with time set to noon to avoid timezone shifts
+      const dateToSave = new Date(bookingToEdit.date);
+      
+      // Apply both techniques to ensure consistency
+      dateToSave.setHours(12, 0, 0, 0);
+      
+      // Apply timezone offset compensation if needed
+      const userTimezoneOffset = dateToSave.getTimezoneOffset() * 60000;
+      const finalDateToSave = new Date(dateToSave.getTime() - userTimezoneOffset);
+      
+      console.log("Original date:", bookingToEdit.date);
+      console.log("Initial adjusted date:", dateToSave);
+      console.log("Final date to save (fully adjusted):", finalDateToSave);
 
       // Prepare the data for update
       const updateData: any = {
         vehicleId: bookingToEdit.vehicle?.id,
+        date: finalDateToSave, // Use the fully timezone-adjusted date
         timeSlot: bookingToEdit.timeSlot,
         notes: bookingToEdit.notes,
         status: bookingToEdit.status,
@@ -422,6 +583,7 @@ export default function AdminBookings() {
                 paymentStatus: updatedBooking.paymentStatus || "PAID",
                 paymentType: updatedBooking.paymentType || "FULL",
                 timeSlot: updatedBooking.timeSlot,
+                date: updatedBooking.date,
                 employee: updatedBooking.employee
                   ? {
                     id: updatedBooking.employee.id,
@@ -435,12 +597,28 @@ export default function AdminBookings() {
         );
       }
 
+      // Show appropriate toast message
+      if (isRescheduled) {
+        toast.success("Appointment successfully rescheduled");
+      } else {
       toast.success("Booking updated successfully");
+      }
+      
       setIsEditDialogOpen(false);
       setBookingToEdit(null);
     } catch (error) {
       console.error("Error updating booking:", error);
-      toast.error("Failed to update booking");
+      // Get the error message from the error object if available
+      const errorMessage = error instanceof Error 
+        ? error.message 
+        : 'Failed to update booking';
+        
+      // Show more specific error message
+      if (errorMessage.includes('fully booked')) {
+        toast.error("This time slot is already fully booked. Please select a different time.");
+      } else {
+        toast.error(errorMessage);
+      }
     } finally {
       setIsSaving(false);
     }
@@ -465,10 +643,32 @@ export default function AdminBookings() {
     );
   };
 
+  // Update handleDateChange to load availability for the new date
   const handleDateChange = (date: Date | undefined) => {
-    // Date editing is disabled, so this is just for reference
-    console.log("Date editing is disabled");
-    return; // Do nothing since date editing is disabled
+    if (!date) return;
+    
+    // Fix timezone issue by setting the time to noon and applying timezone offset
+    // This prevents the date from shifting due to timezone conversions
+    const adjustedDate = new Date(date);
+    
+    // First set hours to noon
+    adjustedDate.setHours(12, 0, 0, 0);
+    
+    console.log("Selected date:", date);
+    console.log("Initial adjusted date:", adjustedDate);
+    
+    // When storing the date, ensure it's consistent with our display logic
+    const userTimezoneOffset = adjustedDate.getTimezoneOffset() * 60000;
+    const finalDate = new Date(adjustedDate.getTime() - userTimezoneOffset);
+    
+    console.log("Final adjusted date with timezone compensation:", finalDate);
+    
+    // Load time slot availability for the new date
+    loadTimeSlotAvailability(finalDate);
+    
+    setBookingToEdit((prev: Booking | null) =>
+      prev ? { ...prev, date: finalDate } : null
+    );
   };
 
   const handleTimeChange = (value: string) => {
@@ -658,10 +858,25 @@ export default function AdminBookings() {
                           </TableCell>
                           <TableCell>
                             <div>
-                              {format(new Date(booking.date), "MMM d, yyyy")}
+                              {(() => {
+                                try {
+                                  // Create a date object and apply timezone offset compensation
+                                  const date = new Date(booking.date);
+                                  const userTimezoneOffset = date.getTimezoneOffset() * 60000;
+                                  const adjustedDate = new Date(date.getTime() + userTimezoneOffset);
+                                  
+                                  // Set hours to noon as additional precaution
+                                  adjustedDate.setHours(12, 0, 0, 0);
+                                  
+                                  return format(adjustedDate, "MMM d, yyyy");
+                                } catch (e) {
+                                  console.error("Error formatting date:", e);
+                                  return "Invalid date";
+                                }
+                              })()}
                             </div>
                             <div className="text-sm text-muted-foreground">
-                              {booking.timeSlot ? formatTimeSlot(booking.timeSlot) : format(new Date(booking.date), "h:mm a")}
+                              {booking.timeSlot ? formatTimeSlot(booking.timeSlot) : ""}
                             </div>
                           </TableCell>
                           <TableCell>
@@ -714,13 +929,14 @@ export default function AdminBookings() {
                 open={!!selectedBooking && !isEditDialogOpen}
                 onOpenChange={() => setSelectedBooking(null)}
               >
-                <DialogContent className="sm:max-w-[600px]">
+                <DialogContent className="sm:max-w-[600px] max-h-[85vh] flex flex-col">
                   <DialogHeader>
                     <DialogTitle>Booking Details</DialogTitle>
                     <DialogDescription>
                       Booking #{selectedBooking.id}
                     </DialogDescription>
                   </DialogHeader>
+                  <div className="overflow-y-auto pr-2 flex-1">
                   <div className="grid gap-4 py-4">
                     <div className="grid grid-cols-2 gap-4">
                       <div>
@@ -754,11 +970,26 @@ export default function AdminBookings() {
                           </div>
                           <div className="text-sm">
                             <span className="font-medium">Date:</span>{" "}
-                            {format(new Date(selectedBooking.date), "MMMM d, yyyy")}
+                              {(() => {
+                                try {
+                                  // Create a date object and apply timezone offset compensation
+                                  const date = new Date(selectedBooking.date);
+                                  const userTimezoneOffset = date.getTimezoneOffset() * 60000;
+                                  const adjustedDate = new Date(date.getTime() + userTimezoneOffset);
+                                  
+                                  // Set hours to noon as additional precaution
+                                  adjustedDate.setHours(12, 0, 0, 0);
+                                  
+                                  return format(adjustedDate, "MMMM d, yyyy");
+                                } catch (e) {
+                                  console.error("Error formatting date:", e);
+                                  return "Invalid date";
+                                }
+                              })()}
                           </div>
                           <div className="text-sm">
                             <span className="font-medium">Time:</span>{" "}
-                            {selectedBooking.timeSlot ? formatTimeSlot(selectedBooking.timeSlot) : format(new Date(selectedBooking.date), "h:mm a")}
+                              {selectedBooking.timeSlot ? formatTimeSlot(selectedBooking.timeSlot) : ""}
                           </div>
                         </div>
                       </div>
@@ -828,7 +1059,7 @@ export default function AdminBookings() {
                       </div>
                     </div>
                   </div>
-                  <DialogFooter className="flex flex-col sm:flex-row gap-2">
+                    <DialogFooter className="flex flex-col sm:flex-row gap-2 mt-4 pt-4 border-t">
                     <Button
                       variant="outline"
                       onClick={() => handleEditBooking(selectedBooking)}
@@ -862,6 +1093,7 @@ export default function AdminBookings() {
                       </Button>
                     )}
                   </DialogFooter>
+                  </div>
                 </DialogContent>
               </Dialog>
             )}
@@ -877,14 +1109,14 @@ export default function AdminBookings() {
                   }
                 }}
               >
-                <DialogContent className="sm:max-w-[600px]">
+                <DialogContent className="sm:max-w-[600px] max-h-[85vh] flex flex-col">
                   <DialogHeader>
                     <DialogTitle>Edit Booking</DialogTitle>
                     <DialogDescription>
                       Update booking #{bookingToEdit?.id} details
                     </DialogDescription>
                   </DialogHeader>
-                  <div className="grid gap-4 py-4">
+                  <div className="overflow-y-auto pr-2 flex-1">
                     <Tabs defaultValue="details" className="w-full">
                       <TabsList className="grid w-full grid-cols-3">
                         <TabsTrigger value="details">Details</TabsTrigger>
@@ -927,35 +1159,59 @@ export default function AdminBookings() {
                         </div>
 
                         <div className="grid grid-cols-2 gap-4">
+                          
                           <div className="grid gap-2">
                             <Label htmlFor="edit-date">Date</Label>
-                            <Popover>
-                              <PopoverTrigger asChild>
-                                <Button
+                            <Input
                                   id="edit-date"
-                                  variant="outline"
-                                  className="w-full justify-start text-left font-normal"
-                                  disabled={true}
-                                >
-                                  <CalendarIcon className="mr-2 h-4 w-4" />
-                                  {bookingToEdit?.date
-                                    ? format(new Date(bookingToEdit.date), "PPP")
-                                    : "Pick a date"}
-                                </Button>
-                              </PopoverTrigger>
-                              <PopoverContent className="w-auto p-0" align="start">
-                                <Calendar
-                                  mode="single"
-                                  selected={
-                                    bookingToEdit?.date
-                                      ? new Date(bookingToEdit.date)
-                                      : undefined
-                                  }
-                                  onSelect={handleDateChange}
-                                  initialFocus
-                                />
-                              </PopoverContent>
-                            </Popover>
+                              type="date"
+                              value={(() => {
+                                if (!bookingToEdit?.date) return "";
+                                
+                                // Compensate for timezone offset to ensure the date displayed
+                                // is the same as the date selected
+                                const date = new Date(bookingToEdit.date);
+                                
+                                // First set hours to noon to normalize
+                                date.setHours(12, 0, 0, 0);
+                                
+                                // Then apply timezone offset
+                                const userTimezoneOffset = date.getTimezoneOffset() * 60000;
+                                const adjustedDate = new Date(date.getTime() + userTimezoneOffset);
+                                
+                                console.log("Original date in UI:", date);
+                                console.log("Hours in original date:", date.getHours());
+                                console.log("Timezone offset (minutes):", date.getTimezoneOffset());
+                                console.log("Adjusted date for display:", adjustedDate);
+                                console.log("ISO string for input:", adjustedDate.toISOString().split('T')[0]);
+                                
+                                return adjustedDate.toISOString().split('T')[0];
+                              })()}
+                              onChange={(e) => {
+                                if (e.target.value) {
+                                  // When a new date is selected, create a date that preserves
+                                  // the exact date regardless of timezone
+                                  const selectedDate = new Date(e.target.value);
+                                  
+                                  // First set hours to noon
+                                  selectedDate.setHours(12, 0, 0, 0);
+                                  
+                                  // Then apply timezone offset
+                                  const userTimezoneOffset = selectedDate.getTimezoneOffset() * 60000;
+                                  const adjustedDate = new Date(selectedDate.getTime() - userTimezoneOffset);
+                                  
+                                  console.log("Selected date from input:", e.target.value);
+                                  console.log("Date object created:", selectedDate);
+                                  console.log("Timezone offset (minutes):", selectedDate.getTimezoneOffset());
+                                  console.log("Adjusted date for storage:", adjustedDate);
+                                  
+                                  handleDateChange(adjustedDate);
+                                }
+                              }}
+                              min={new Date().toISOString().split('T')[0]}
+                              className="w-full"
+                            />
+                          
                           </div>
 
                           <div className="grid gap-2">
@@ -989,14 +1245,45 @@ export default function AdminBookings() {
                                   "16:00",
                                   "16:30",
                                   "17:00",
-                                ].map((time) => (
-                                  <SelectItem key={time} value={time}>
+                                ].map((time) => {
+                                  // Check if this time slot is at capacity (excluding current booking)
+                                  const bookingsCount = timeSlotAvailability[time] || timeSlotAvailability[formatTimeSlot(time)] || 0;
+                                  
+                                  // If this is the current booking's time slot, we don't count it
+                                  const adjustedCount = 
+                                    bookingToEdit?.timeSlot === time 
+                                      ? Math.max(0, bookingsCount - 1) 
+                                      : bookingsCount;
+                                      
+                                  const isAtCapacity = adjustedCount >= 2;
+                                  
+                                  return (
+                                    <SelectItem 
+                                      key={time} 
+                                      value={time}
+                                      disabled={isAtCapacity}
+                                    >
+                                      <div className="flex justify-between items-center w-full">
+                                        <span>
                                     {format(
                                       parse(time, "HH:mm", new Date()),
                                       "h:mm a"
                                     )}
+                                        </span>
+                                        {isAtCapacity && (
+                                          <span className="text-xs text-red-500 ml-2">
+                                            Fully booked
+                                          </span>
+                                        )}
+                                        {!isAtCapacity && (
+                                          <span className="text-xs text-green-600 ml-2">
+                                            {2 - adjustedCount} {adjustedCount === 1 ? "spot" : "spots"} left
+                                          </span>
+                                        )}
+                                      </div>
                                   </SelectItem>
-                                ))}
+                                  );
+                                })}
                               </SelectContent>
                             </Select>
                           </div>
@@ -1120,7 +1407,7 @@ export default function AdminBookings() {
                       </TabsContent>
                     </Tabs>
                   </div>
-                  <DialogFooter>
+                  <DialogFooter className="mt-4 pt-4 border-t">
                     <Button
                       variant="outline"
                       onClick={() => setIsEditDialogOpen(false)}

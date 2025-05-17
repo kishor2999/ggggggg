@@ -77,8 +77,7 @@ export async function fixUserNames() {
       }
     });
 
-    console.log(`Found ${usersWithIssue.length} users with template literal issues`);
-
+    
     // Get all users from Clerk to get their correct information
     const client = await clerkClient();
     let fixedCount = 0;
@@ -104,8 +103,7 @@ export async function fixUserNames() {
         });
 
         fixedCount++;
-        console.log(`Fixed user ${user.id}: "${user.name}" → "${correctName}"`);
-      } catch (err) {
+              } catch (err) {
         console.error(`Error fixing user ${user.id}:`, err);
       }
     }

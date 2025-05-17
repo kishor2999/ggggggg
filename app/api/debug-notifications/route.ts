@@ -23,8 +23,7 @@ export async function GET(req: Request) {
     });
     
     if (!user) {
-      console.log(`User with clerkId ${clerkUserId} not found in database. Creating mock notification.`);
-      
+            
       // Since user doesn't exist in the database, we can't create a notification record,
       // but we can still send a Pusher event for testing purposes
       const mockNotification = {
@@ -39,8 +38,7 @@ export async function GET(req: Request) {
       // Trigger Pusher event without creating a database record
       await pusherServer.trigger(getUserChannel(clerkUserId), EVENT_TYPES.NEW_NOTIFICATION, mockNotification);
       
-      console.log(`Triggered mock Pusher notification event to channel: ${getUserChannel(clerkUserId)}`);
-      
+            
       return NextResponse.json({
         success: true,
         message: 'Mock notification sent (user not found in database)',
@@ -50,8 +48,7 @@ export async function GET(req: Request) {
       });
     }
     
-    console.log(`Found user with internal ID ${user.id} for clerkId ${clerkUserId}`);
-    
+        
     // Create a real notification in database using the internal userId
     const notification = await prisma.notification.create({
       data: {
@@ -63,8 +60,7 @@ export async function GET(req: Request) {
       }
     });
     
-    console.log(`Created test notification with ID: ${notification.id} for user: ${user.id}`);
-    
+        
     // Trigger Pusher event
     await pusherServer.trigger(getUserChannel(clerkUserId), EVENT_TYPES.NEW_NOTIFICATION, {
       id: notification.id,
@@ -75,8 +71,7 @@ export async function GET(req: Request) {
       isRead: false
     });
     
-    console.log(`Triggered Pusher notification event to channel: ${getUserChannel(clerkUserId)}`);
-    
+        
     return NextResponse.json({
       success: true,
       message: 'Test notification sent',
@@ -113,8 +108,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
     
-    console.log(`Creating debug notification for user ${user.id} (Clerk ID: ${user.clerkId})`);
-    
+        
     // Create notification in database
     const notification = await prisma.notification.create({
       data: {
@@ -126,8 +120,7 @@ export async function POST(req: Request) {
       }
     });
     
-    console.log(`Notification created:`, notification);
-    
+        
     // Create the mock notification object early so it can be used anywhere
     const mockNotification = {
       id: `mock-notification-${Date.now()}`,
@@ -139,8 +132,7 @@ export async function POST(req: Request) {
     };
     
     // Send to all possible user channels to ensure delivery
-    console.log(`Sending to ${getUserChannel(user.id)} channel`);
-    await pusherServer.trigger(getUserChannel(user.id), EVENT_TYPES.NEW_NOTIFICATION, {
+        await pusherServer.trigger(getUserChannel(user.id), EVENT_TYPES.NEW_NOTIFICATION, {
       id: notification.id,
       title: notification.title,
       message: notification.message,
@@ -150,8 +142,7 @@ export async function POST(req: Request) {
     });
     
     if (user.clerkId) {
-      console.log(`Sending to ${getUserChannel(user.clerkId)} channel`);
-      await pusherServer.trigger(getUserChannel(user.clerkId), EVENT_TYPES.NEW_NOTIFICATION, {
+            await pusherServer.trigger(getUserChannel(user.clerkId), EVENT_TYPES.NEW_NOTIFICATION, {
         id: notification.id,
         title: notification.title,
         message: notification.message,
@@ -161,13 +152,11 @@ export async function POST(req: Request) {
       });
       
       // Only send mock notification if clerkId exists
-      console.log(`Sending mock notification to ${getUserChannel(user.clerkId)} channel`);
-      await pusherServer.trigger(getUserChannel(user.clerkId), EVENT_TYPES.NEW_NOTIFICATION, mockNotification);
+            await pusherServer.trigger(getUserChannel(user.clerkId), EVENT_TYPES.NEW_NOTIFICATION, mockNotification);
     }
     
     // Also try the DB-specific channel
-    console.log(`Sending to user-db-${user.clerkId || user.id} channel`);
-    await pusherServer.trigger(`user-db-${user.clerkId || user.id}`, EVENT_TYPES.NEW_NOTIFICATION, {
+        await pusherServer.trigger(`user-db-${user.clerkId || user.id}`, EVENT_TYPES.NEW_NOTIFICATION, {
       id: notification.id,
       title: notification.title,
       message: notification.message,

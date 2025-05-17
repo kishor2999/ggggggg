@@ -30,12 +30,14 @@ export default function FeaturedProducts() {
   const { addItem, items } = useCart();
   const { isSignedIn, user } = useUser();
   const [isAdmin, setIsAdmin] = useState(false);
+  const [isEmployee, setIsEmployee] = useState(false);
 
   useEffect(() => {
     if (isSignedIn && user) {
       // Get user role from metadata
       const userRole = user.publicMetadata?.role as string;
       setIsAdmin(userRole === "admin");
+      setIsEmployee(userRole === "employee");
     }
   }, [isSignedIn, user]);
 
@@ -61,9 +63,14 @@ export default function FeaturedProducts() {
 
   const handleAddToCart = (product: Product) => {
     try {
-      // Check if user is admin
+      // Check if user is admin or employee
       if (isAdmin) {
         toast.error("Administrators cannot add items to cart.");
+        return;
+      }
+      
+      if (isEmployee) {
+        toast.error("Employees cannot add items to cart.");
         return;
       }
 
@@ -144,12 +151,12 @@ export default function FeaturedProducts() {
                   </span>
                   <Button
                     onClick={() => handleAddToCart(product)}
-                    disabled={product.stock <= 0 || isInCart(product.id) || isAdmin}
+                    disabled={product.stock <= 0 || isInCart(product.id) || isAdmin || isEmployee}
                     size="sm"
                   >
                     {isInCart(product.id) ? (
                       "Added"
-                    ) : isAdmin ? (
+                    ) : isAdmin || isEmployee ? (
                       "Not Available"
                     ) : (
                       <>

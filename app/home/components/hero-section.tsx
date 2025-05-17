@@ -17,8 +17,9 @@ export default async function HeroSection() {
   const metadata = (sessionClaims?.metadata as UserMetadata) || {};
   const role = metadata.role;
 
-  // Check if user is admin
+  // Check if user is admin or employee
   const isAdmin = role === "admin";
+  const isEmployee = role === "employee";
 
   return (
     <section className="relative px-6">
@@ -39,7 +40,7 @@ export default async function HeroSection() {
           <p className="text-lg md:text-xl">
             Give your vehicle the care it deserves with our professional car wash services.
           </p>
-          {!isAdmin && (
+          {!isAdmin && !isEmployee && (
             <div className="flex flex-col sm:flex-row gap-4">
               <Button size="lg" asChild>
                 <Link href="/dashboard/user/book">Book Your Wash Now</Link>

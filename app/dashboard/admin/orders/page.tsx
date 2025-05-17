@@ -91,18 +91,14 @@ export default function AdminOrders() {
   const fetchOrders = async () => {
     setLoading(true);
     try {
-      console.log("Fetching orders from API...");
-      const response = await fetch(
+            const response = await fetch(
         `/api/admin/orders?page=${currentPage}&status=${statusFilter}&search=${search}`
       );
       
-      console.log("API Response status:", response.status);
-      
+            
       if (response.ok) {
         const data = await response.json();
-        console.log("Orders data received:", data);
-        console.log("Number of orders:", data.orders ? data.orders.length : 0);
-        setOrders(data.orders || []);
+                        setOrders(data.orders || []);
         setTotalPages(data.totalPages || 1);
       } else {
         const errorData = await response.json().catch(() => ({}));
@@ -141,8 +137,7 @@ export default function AdminOrders() {
   };
 
   const viewOrderDetails = (orderId: string) => {
-    console.log("Navigating to order details for ID:", orderId);
-    router.push(`/dashboard/admin/orders/${orderId}`);
+        router.push(`/dashboard/admin/orders/${orderId}`);
   };
 
   return (

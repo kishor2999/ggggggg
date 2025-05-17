@@ -64,14 +64,7 @@ export default async function fetchUserAppointments() {
     // Use the serializeData function to safely serialize everything
     const serializedAppointments = serializeData(user.appointments);
 
-    console.log("Fetched appointments with payment types:", 
-      serializedAppointments.map((a: any) => ({
-        id: a.id, 
-        paymentStatus: a.paymentStatus, 
-        paymentType: a.paymentType
-      }))
-    );
-
+    
     return serializedAppointments;
   } catch (error) {
     console.error("Error fetching appointments:", error);

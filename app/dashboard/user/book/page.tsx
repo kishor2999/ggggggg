@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { DashboardLayout } from "@/components/dashboard-layout";
 import {
   Card,
@@ -35,6 +35,8 @@ import { EsewaPaymentForm } from "@/app/components/EsewaPaymentForm";
 import { createEsewaFormData, ESEWA_CONFIG } from "@/lib/esewa-utils";
 import { useRouter } from "next/navigation";
 import { v4 as uuidv4 } from "uuid";
+import { getTimeSlotAvailability } from "@/app/actions/bookings";
+import { EVENT_TYPES, getDateAvailabilityChannel, pusherClient } from "@/lib/pusher";
 
 const timeSlots = [
   "9:00 AM",
@@ -78,6 +80,8 @@ export default function BookService() {
     model: "",
     plate: "",
   });
+  const [timeSlotAvailability, setTimeSlotAvailability] = useState<Record<string, number>>({});
+  const currentChannelRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (userId) {
@@ -85,6 +89,15 @@ export default function BookService() {
       loadServices();
     }
   }, [userId]);
+
+  useEffect(() => {
+    return () => {
+      if (currentChannelRef.current) {
+        pusherClient.unsubscribe(currentChannelRef.current);
+        currentChannelRef.current = null;
+      }
+    };
+  }, []);
 
   const loadServices = async () => {
     try {
@@ -248,6 +261,173 @@ export default function BookService() {
   const selectedVehicleDetails = vehicles.find(
     (vehicle) => vehicle.id === selectedVehicle
   );
+
+  const loadTimeSlotAvailability = async (selectedDate: Date) => {
+    try {
+      if (!selectedDate) return;
+      
+      const availability = await getTimeSlotAvailability(selectedDate);
+      console.log("Time slot availability raw data:", availability);
+      
+      // Create a normalized version of the availability data that handles both formats
+      const normalizedAvailability: Record<string, number> = {};
+      
+      // Process each time slot in the availability data
+      Object.entries(availability).forEach(([dbTimeSlot, count]) => {
+        // Convert 24-hour format from DB to 12-hour format for display
+        try {
+          if (dbTimeSlot.match(/^\d{1,2}:\d{2}$/)) {
+            // If it's already in 24-hour format (HH:MM), convert to 12-hour format
+            const [hour, minute] = dbTimeSlot.split(':').map(Number);
+            let displayHour = hour % 12;
+            if (displayHour === 0) displayHour = 12;
+            const period = hour >= 12 ? 'PM' : 'AM';
+            const displayFormat = `${displayHour}:${minute.toString().padStart(2, '0')} ${period}`;
+            normalizedAvailability[displayFormat] = count;
+            
+            // Also store the original format for fallback
+            normalizedAvailability[dbTimeSlot] = count;
+          } else {
+            // If it's already in 12-hour format, store as is
+            normalizedAvailability[dbTimeSlot] = count;
+            
+            // Also convert to 24-hour format and store that
+            const matches = dbTimeSlot.match(/(\d+):(\d+)\s(AM|PM)/);
+            if (matches) {
+              const [_, hourStr, minuteStr, period] = matches;
+              let hour = parseInt(hourStr);
+              if (period === "PM" && hour < 12) hour += 12;
+              if (period === "AM" && hour === 12) hour = 0;
+              const dbFormat = `${hour.toString().padStart(2, '0')}:${minuteStr}`;
+              normalizedAvailability[dbFormat] = count;
+            }
+          }
+        } catch (e) {
+          console.error("Error normalizing time format:", e);
+          // Fallback: keep the original format
+          normalizedAvailability[dbTimeSlot] = count;
+        }
+      });
+      
+      console.log("Normalized availability data:", normalizedAvailability);
+      setTimeSlotAvailability(normalizedAvailability);
+      
+      // If the currently selected time slot is fully booked, reset selection
+      if (timeSlot) {
+        // Check if selected time slot is at capacity in either format
+        const isAtCapacity = 
+          (normalizedAvailability[timeSlot] >= 2) || 
+          // Also check the converted format
+          (() => {
+            const convertedTimeSlot = timeSlot.replace(
+              /(\d+):(\d+)\s(AM|PM)/,
+              (match, hour, minute, period) => {
+                let h = parseInt(hour);
+                if (period === "PM" && h < 12) h += 12;
+                if (period === "AM" && h === 12) h = 0;
+                return `${h.toString().padStart(2, '0')}:${minute}`;
+              }
+            );
+            return normalizedAvailability[convertedTimeSlot] >= 2;
+          })();
+        
+        if (isAtCapacity) {
+          setTimeSlot(null);
+          toast.warning("Your previously selected time slot is now fully booked.");
+        }
+      }
+      
+      // Subscribe to real-time updates for this date
+      const dateChannel = getDateAvailabilityChannel(selectedDate);
+      
+      // Unsubscribe from previous channel if exists
+      if (currentChannelRef.current && currentChannelRef.current !== dateChannel) {
+        pusherClient.unsubscribe(currentChannelRef.current);
+      }
+      
+      // Subscribe to new channel
+      const channel = pusherClient.subscribe(dateChannel);
+      currentChannelRef.current = dateChannel;
+      
+      // Handle availability updates
+      channel.bind(EVENT_TYPES.TIMESLOT_AVAILABILITY_UPDATED, (data: any) => {
+        console.log("Received real-time availability update:", data);
+        
+        // Normalize the incoming data
+        const normalizedUpdate: Record<string, number> = {};
+        
+        // Process each time slot in the update data
+        Object.entries(data.timeSlotsCount).forEach(([dbTimeSlot, count]) => {
+          // Convert 24-hour format to 12-hour format
+          try {
+            if (dbTimeSlot.match(/^\d{1,2}:\d{2}$/)) {
+              // If it's in 24-hour format (HH:MM), convert to 12-hour format
+              const [hour, minute] = dbTimeSlot.split(':').map(Number);
+              let displayHour = hour % 12;
+              if (displayHour === 0) displayHour = 12;
+              const period = hour >= 12 ? 'PM' : 'AM';
+              const displayFormat = `${displayHour}:${minute.toString().padStart(2, '0')} ${period}`;
+              normalizedUpdate[displayFormat] = count as number;
+              
+              // Also store the original format for fallback
+              normalizedUpdate[dbTimeSlot] = count as number;
+            } else {
+              // If it's already in 12-hour format, store as is
+              normalizedUpdate[dbTimeSlot] = count as number;
+              
+              // Also convert to 24-hour format and store that
+              const matches = dbTimeSlot.match(/(\d+):(\d+)\s(AM|PM)/);
+              if (matches) {
+                const [_, hourStr, minuteStr, period] = matches;
+                let hour = parseInt(hourStr);
+                if (period === "PM" && hour < 12) hour += 12;
+                if (period === "AM" && hour === 12) hour = 0;
+                const dbFormat = `${hour.toString().padStart(2, '0')}:${minuteStr}`;
+                normalizedUpdate[dbFormat] = count as number;
+              }
+            }
+          } catch (e) {
+            console.error("Error normalizing time format in update:", e);
+            // Fallback: keep the original format
+            normalizedUpdate[dbTimeSlot] = count as number;
+          }
+        });
+        
+        console.log("Normalized update data:", normalizedUpdate);
+        setTimeSlotAvailability(normalizedUpdate);
+        
+        // If the currently selected time slot is now fully booked, reset selection
+        if (timeSlot) {
+          // Check if selected time slot is at capacity in either format
+          const isAtCapacity = 
+            (normalizedUpdate[timeSlot] >= 2) || 
+            // Also check the converted format
+            (() => {
+              const convertedTimeSlot = timeSlot.replace(
+                /(\d+):(\d+)\s(AM|PM)/,
+                (match, hour, minute, period) => {
+                  let h = parseInt(hour);
+                  if (period === "PM" && h < 12) h += 12;
+                  if (period === "AM" && h === 12) h = 0;
+                  return `${h.toString().padStart(2, '0')}:${minute}`;
+                }
+              );
+              return normalizedUpdate[convertedTimeSlot] >= 2;
+            })();
+          
+          if (isAtCapacity) {
+            setTimeSlot(null);
+            toast.warning("Your selected time slot is now fully booked. Please select another time.");
+          }
+        }
+      });
+      
+      console.log(`Subscribed to availability updates for date: ${dateChannel}`);
+    } catch (error) {
+      console.error("Error loading time slot availability:", error);
+      // Don't show an error toast to avoid confusing the user
+    }
+  };
 
   return (
     <DashboardLayout userRole="user">
@@ -510,13 +690,18 @@ export default function BookService() {
                       setDate(newDate);
                       // Reset time slot when date changes to avoid keeping a potentially invalid selection
                       setTimeSlot(null);
+                      
+                      // Load time slot availability for the new date
+                      if (newDate) {
+                        loadTimeSlotAvailability(newDate);
+                      }
                     }}
                     className="rounded-md border"
                     disabled={(date) => {
-                      // Disable past dates and Sundays
+                      // Disable past dates and Saturdays (shop is closed on Saturday)
                       const today = new Date();
                       today.setHours(0, 0, 0, 0);
-                      return date < today || date.getDay() === 0;
+                      return date < today || date.getDay() === 6; // 6 is Saturday
                     }}
                   />
                 </CardContent>
@@ -533,8 +718,23 @@ export default function BookService() {
                 <CardContent>
                   <div className="grid grid-cols-3 gap-2">
                     {timeSlots.map((time) => {
+                      // Convert 12-hour format to 24-hour format for database comparison
+                      const convertedTime = time.replace(
+                        /(\d+):(\d+)\s(AM|PM)/,
+                        (match, hour, minute, period) => {
+                          let h = parseInt(hour);
+                          if (period === "PM" && h < 12) h += 12;
+                          if (period === "AM" && h === 12) h = 0;
+                          return `${h.toString().padStart(2, '0')}:${minute}`;
+                        }
+                      );
+                      
+                      // Check if this time slot is already at capacity in either format
+                      const bookingsCount = timeSlotAvailability[time] || timeSlotAvailability[convertedTime] || 0;
+                      const isAtCapacity = bookingsCount >= 2;
+                      
                       // Check if this time slot is in the past for the current day
-                      let isDisabled = false;
+                      let isPastTime = false;
 
                       if (date) {
                         // Check if selected date is today
@@ -563,20 +763,36 @@ export default function BookService() {
                             timeSlotDate.setHours(hour, minute, 0, 0);
 
                             // Compare with current time
-                            isDisabled = timeSlotDate <= today;
+                            isPastTime = timeSlotDate <= today;
                           }
                         }
                       }
+
+                      // Determine if the slot should be disabled
+                      const isDisabled = isPastTime || isAtCapacity;
 
                       return (
                         <Button
                           key={time}
                           variant={timeSlot === time ? "default" : "outline"}
-                          className="w-full"
+                          className={cn(
+                            "w-full relative",
+                            isAtCapacity && "bg-gray-100 text-gray-400 hover:bg-gray-100"
+                          )}
                           onClick={() => setTimeSlot(time)}
                           disabled={isDisabled}
                         >
-                          {time}
+                          <span>{time}</span>
+                          
+                          {/* Show available spots */}
+                          {!isPastTime && (
+                            <span className={cn(
+                              "absolute bottom-1 right-2 text-[10px]",
+                              isAtCapacity ? "text-red-500" : "text-green-600"
+                            )}>
+                              {isAtCapacity ? "Full" : `${2 - bookingsCount} spots`}
+                            </span>
+                          )}
                         </Button>
                       );
                     })}

@@ -38,8 +38,7 @@ export default function UserNotifications() {
     
     // Handle new notification events
     const handleNewNotification = (notification: Notification) => {
-      console.log("New notification received:", notification);
-      
+            
       // Check if we already have this notification
       const exists = notifications.some(n => n.id === notification.id);
       if (exists) {
@@ -58,8 +57,7 @@ export default function UserNotifications() {
     
     // Handle notification status updates (read/unread)
     const handleNotificationStatusUpdate = (data: any) => {
-      console.log("Notification status update received:", data);
-      
+            
       if (data.action === 'read') {
         // Update the specific notification's read status
         setNotifications(prev => 

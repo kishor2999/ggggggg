@@ -37,8 +37,7 @@ export default function EmployeeNotifications() {
     
     // Handle new notification events
     const handleNewNotification = (notification: Notification) => {
-      console.log("New notification received:", notification);
-      
+            
       // Check if we already have this notification
       const exists = notifications.some(n => n.id === notification.id);
       if (exists) {

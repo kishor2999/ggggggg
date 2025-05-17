@@ -7,8 +7,7 @@ export async function GET(request: Request) {
     const url = new URL(request.url);
     const data = url.searchParams.get("data");
 
-    console.log("Raw failure response data:", data);
-
+    
     if (!data) {
       console.error("No data received from eSewa");
       return NextResponse.redirect(
@@ -23,8 +22,7 @@ export async function GET(request: Request) {
     try {
       decodedData = Buffer.from(data, "base64").toString();
       responseBody = JSON.parse(decodedData);
-      console.log("Decoded eSewa failure response:", responseBody);
-    } catch (error) {
+          } catch (error) {
       console.error("Error decoding failure response:", error);
       return NextResponse.redirect(
         `Rs{url.origin}/dashboard/user/orders/failed?reason=invalid_response`
@@ -43,8 +41,7 @@ export async function GET(request: Request) {
     });
 
     if (payment) {
-      console.log("Found payment record for failed transaction:", payment);
-
+      
       // Update payment status to FAILED
       await prisma.payment.update({
         where: { id: payment.id },

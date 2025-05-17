@@ -68,24 +68,4 @@ export default function OrderPaymentExample({ order }: { order: Order }) {
           {isPaying ? (
             <EsewaPaymentForm 
               params={getEsewaParams()}
-              onPaymentInitiated={() => console.log("Payment initiated for order:", order.id)}
-            />
-          ) : (
-            <button
-              onClick={handleInitiatePayment}
-              className="w-full py-2 bg-green-600 text-white rounded-md hover:bg-green-700"
-            >
-              Pay with eSewa
-            </button>
-          )}
-        </div>
-      )}
-      
-      {order.status === 'PAID' && (
-        <div className="bg-green-50 text-green-700 p-3 rounded-md">
-          Payment completed successfully!
-        </div>
-      )}
-    </div>
-  );
-} 
+              onPaymentInitiated={() => } 

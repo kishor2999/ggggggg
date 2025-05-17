@@ -5,16 +5,14 @@ import { ESEWA_CONFIG, verifySignature } from '@/lib/esewa-utils';
 export async function POST(req: NextRequest) {
   try {
     const data = await req.json();
-    console.log("Received verification data:", data);
-    
+        
     // The response is in base64 encoded format according to new eSewa docs
     let decodedData;
     try {
       // Decode base64 to get the actual response data
       const jsonStr = Buffer.from(data.encodedResponse || '', 'base64').toString('utf-8');
       decodedData = JSON.parse(jsonStr);
-      console.log("Decoded eSewa response:", decodedData);
-    } catch (error) {
+          } catch (error) {
       console.error("Error decoding response:", error);
       return NextResponse.json({ success: false, message: 'Invalid response format' }, { status: 400 });
     }
@@ -42,8 +40,7 @@ export async function POST(req: NextRequest) {
     // Handle differently based on payment type
     if (paymentType === 'ecommerce') {
       // Handle e-commerce payment verification
-      console.log("Verifying e-commerce payment");
-      
+            
       // Extract order ID from payment reference
       const orderId = payment_id || null;
       
@@ -95,34 +92,24 @@ export async function POST(req: NextRequest) {
       });
     } else {
       // Handle car wash appointment payment
-      console.log("Verifying car wash appointment payment");
-      
+            
       // Find the appointment using payment_id from form parameters
       let appointmentId = null;
       
       // Log all available fields for debugging
-      console.log("Looking for appointment ID in response:", {
-        transaction_uuid,
-        payment_id, 
-        params: decodedData.params
-      });
-      
+            
       // Check all possible places where the appointment ID might be stored
       if (payment_id) {
         appointmentId = payment_id;
-        console.log("Using payment_id:", appointmentId);
-      } else if (decodedData.params?.payment_id) {
+              } else if (decodedData.params?.payment_id) {
         appointmentId = decodedData.params.payment_id;
-        console.log("Using params.payment_id:", appointmentId);
-      } else if (transaction_uuid) {
+              } else if (transaction_uuid) {
         // Try different ways to extract from transaction_uuid
         if (transaction_uuid.includes('-')) {
           appointmentId = transaction_uuid.split('-')[0];
-          console.log("Extracted from transaction_uuid with split:", appointmentId);
-        } else {
+                  } else {
           appointmentId = transaction_uuid;
-          console.log("Using full transaction_uuid:", appointmentId);
-        }
+                  }
       }
       
       if (!appointmentId) {
@@ -130,8 +117,7 @@ export async function POST(req: NextRequest) {
       }
       
       // Try to find the appointment with logging
-      console.log("Searching for appointment with ID:", appointmentId);
-      
+            
       // Attempt to find the appointment
       let appointment = null;
       try {
@@ -140,8 +126,7 @@ export async function POST(req: NextRequest) {
         });
         
         if (!appointment) {
-          console.log("Appointment not found with exact ID, checking recent appointments...");
-          
+                    
           // If not found, try to find the most recent appointment
           const recentAppointments = await prisma.appointment.findMany({
             where: {
@@ -155,8 +140,7 @@ export async function POST(req: NextRequest) {
           
           if (recentAppointments.length > 0) {
             appointment = recentAppointments[0];
-            console.log("Using most recent pending appointment instead:", appointment.id);
-          }
+                      }
         }
       } catch (error: any) {
         console.error("Database error finding appointment:", error);
@@ -173,23 +157,19 @@ export async function POST(req: NextRequest) {
       
       // Get the payment type from the appointment
       const appointmentPaymentType = appointment.paymentType || 'FULL';
-      console.log(`Appointment payment type: ${appointmentPaymentType}`);
-      
+            
       // Determine payment status based on both amount paid and payment type
       // If it's a HALF payment type, then mark as HALF_PAID
       let paymentStatus = 'PAID';
       if (appointmentPaymentType === 'HALF') {
         paymentStatus = 'HALF_PAID';
-        console.log('Payment type is HALF, marking as HALF_PAID');
-      } else if (totalAmountNum < appointmentPrice * 0.9) {
+              } else if (totalAmountNum < appointmentPrice * 0.9) {
         // If less than 90% of full price is paid, and it's not explicitly marked as HALF
         // then it's probably a partial payment
         paymentStatus = 'HALF_PAID';
-        console.log(`Amount paid (${totalAmountNum}) is less than 90% of price (${appointmentPrice}), marking as HALF_PAID`);
-      }
+              }
       
-      console.log(`Payment verified: ${totalAmountNum} of ${appointmentPrice}, status: ${paymentStatus}, type: ${appointmentPaymentType}`);
-      
+            
       // Create payment record
       const payment = await prisma.payment.create({
         data: {

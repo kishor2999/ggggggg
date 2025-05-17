@@ -41,8 +41,7 @@ export default function PaymentSuccess() {
         setPaymentType(type);
         
         // Log the data being sent for verification
-        console.log("Sending payment data for verification:", { encodedResponse, paymentType: type });
-        
+                
         const response = await fetch("/api/esewa/verify", {
           method: "POST",
           headers: {
@@ -55,8 +54,7 @@ export default function PaymentSuccess() {
         });
 
         const result = await response.json();
-        console.log("Verification result:", result);
-        
+                
         if (result.success) {
           setSuccess(true);
           setMessage("Payment completed successfully!");

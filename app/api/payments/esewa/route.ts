@@ -84,12 +84,7 @@ export async function POST(request: Request) {
     `;
 
     // Store the transaction details for future reference
-    console.log('Payment initiated:', {
-      paymentId: payment.id,
-      transactionUuid,
-      amount: roundedAmount
-    });
-
+    
     // Return the HTML form directly
     return new NextResponse(formHtml, {
       headers: {

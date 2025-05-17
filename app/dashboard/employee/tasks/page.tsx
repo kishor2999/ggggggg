@@ -114,15 +114,12 @@ export default function EmployeeTasks() {
     const fetchTasks = async () => {
       try {
         if (!userId) {
-          console.log("No userId available");
-          return;
+                    return;
         }
 
-        console.log("Fetching tasks for userId:", userId);
-        const fetchedTasks = await getEmployeeTasks(userId);
+                const fetchedTasks = await getEmployeeTasks(userId);
 
-        console.log("Fetched tasks:", fetchedTasks);
-
+        
         // Ensure dates are properly handled
         const tasksWithDates = fetchedTasks.map((task) => ({
           ...task,
@@ -193,19 +190,7 @@ export default function EmployeeTasks() {
         (b.completedAt?.getTime() || 0) - (a.completedAt?.getTime() || 0)
     );
 
-  console.log("Debug filtering:", {
-    totalTasks: tasks.length,
-    filteredTasks: filteredTasks.length,
-    sortedTasks: sortedTasks.length,
-    todayTasks: todayTasks.length,
-    inProgressTasks: inProgressTasks.length,
-    upcomingTasks: upcomingTasks.length,
-    completedTasks: completedTasks.length,
-    firstTaskDate:
-      tasks.length > 0 ? tasks[0].scheduledTime.toISOString() : "none",
-    today: today.toISOString(),
-  });
-
+  
   // Handle task selection
   const handleSelectTask = (task: Task) => {
     setSelectedTask(task);

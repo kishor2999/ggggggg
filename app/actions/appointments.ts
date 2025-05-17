@@ -1,7 +1,67 @@
 "use server"
 import prisma from '@/lib/db';
 import { auth } from '@clerk/nextjs/server';
-import { EVENT_TYPES, getAdminChannel, getUserChannel, pusherServer } from '@/lib/pusher';
+import { EVENT_TYPES, getAdminChannel, getDateAvailabilityChannel, getUserChannel, pusherServer } from '@/lib/pusher';
+
+// Add a helper function to normalize time slot format
+function normalizeTimeSlot(timeSlot: string): string {
+  // If already in 24-hour format, return as is
+  if (timeSlot.match(/^\d{1,2}:\d{2}$/)) {
+    return timeSlot;
+  }
+  
+  // Convert from 12-hour to 24-hour format
+  const matches = timeSlot.match(/(\d+):(\d+)\s?(AM|PM|am|pm)/i);
+  if (matches) {
+    const [_, hourStr, minuteStr, periodStr] = matches;
+    let hour = parseInt(hourStr);
+    const minute = parseInt(minuteStr);
+    const period = periodStr.toUpperCase();
+    
+    if (period === "PM" && hour < 12) hour += 12;
+    if (period === "AM" && hour === 12) hour = 0;
+    
+    return `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
+  }
+  
+  // If couldn't parse, return original
+  console.warn(`Couldn't normalize time slot format: ${timeSlot}`);
+  return timeSlot;
+}
+
+// Add this function to check if a time slot is already at capacity
+async function isTimeSlotAtCapacity(date: Date, timeSlot: string) {
+  // Normalize the time slot to 24-hour format for consistent database queries
+  const normalizedTimeSlot = normalizeTimeSlot(timeSlot);
+  
+  // Format the date to remove time component for comparison
+  const bookingDate = new Date(date);
+  bookingDate.setHours(0, 0, 0, 0);
+  
+  // Set the end of the day for date range query
+  const endOfDay = new Date(bookingDate);
+  endOfDay.setHours(23, 59, 59, 999);
+
+  // Count how many appointments already exist for this date and time slot
+  const existingAppointments = await prisma.appointment.count({
+    where: {
+      date: {
+        gte: bookingDate,
+        lte: endOfDay,
+      },
+      timeSlot: normalizedTimeSlot,
+      // Only count active appointments
+      status: {
+        in: ['PENDING', 'SCHEDULED', 'IN_PROGRESS']
+      }
+    }
+  });
+
+  console.log(`Found ${existingAppointments} existing appointments for ${bookingDate.toDateString()} at ${normalizedTimeSlot} (original: ${timeSlot})`);
+  
+  // Return true if we already have 2 or more appointments for this time slot
+  return existingAppointments >= 2;
+}
 
 export async function createAppointment(data: {
   serviceId: string;
@@ -31,6 +91,16 @@ export async function createAppointment(data: {
     // Check if user is admin and prevent appointment creation
     if (role === "admin") {
       throw new Error('Administrators cannot book appointments');
+    }
+
+    // Normalize the time slot format for consistent storage
+    const normalizedTimeSlot = normalizeTimeSlot(data.timeSlot);
+    console.log(`Time slot normalized from ${data.timeSlot} to ${normalizedTimeSlot}`);
+
+    // CHECK CAPACITY: Check if this time slot is already at capacity (2 appointments)
+    const isAtCapacity = await isTimeSlotAtCapacity(data.date, normalizedTimeSlot);
+    if (isAtCapacity) {
+      throw new Error('This time slot is already fully booked. Please select a different time.');
     }
 
     const user = await prisma.user.findUnique({
@@ -64,7 +134,7 @@ export async function createAppointment(data: {
         serviceId: data.serviceId,
         vehicleId: data.vehicleId,
         date: data.date,
-        timeSlot: data.timeSlot,
+        timeSlot: normalizedTimeSlot,
         notes: data.notes,
         price: service.price,
         paymentMethod: data.paymentMethod,
@@ -83,6 +153,54 @@ export async function createAppointment(data: {
     // Format date for notification messages
     const formattedDate = new Date(data.date).toLocaleDateString();
     
+    // After creating the appointment, notify about updated slot availability 
+    // Get the date channel for availability updates
+    const dateChannel = getDateAvailabilityChannel(data.date);
+    
+    // Get updated availability for this date
+    const bookingDate = new Date(data.date);
+    bookingDate.setHours(0, 0, 0, 0);
+    
+    const endOfDay = new Date(bookingDate);
+    endOfDay.setHours(23, 59, 59, 999);
+
+    // Get all active appointments for this date
+    const appointments = await prisma.appointment.findMany({
+      where: {
+        date: {
+          gte: bookingDate,
+          lte: endOfDay,
+        },
+        // Only count active appointments
+        status: {
+          in: ['PENDING', 'SCHEDULED', 'IN_PROGRESS']
+        }
+      },
+      select: {
+        timeSlot: true,
+      }
+    });
+
+    // Count appointments per time slot
+    const timeSlotsCount: Record<string, number> = {};
+    
+    appointments.forEach(appointment => {
+      const timeSlot = appointment.timeSlot;
+      timeSlotsCount[timeSlot] = (timeSlotsCount[timeSlot] || 0) + 1;
+    });
+
+    // Emit event with updated availability
+    console.log(`Sending availability update to channel: ${dateChannel}`);
+    await pusherServer.trigger(
+      dateChannel,
+      EVENT_TYPES.TIMESLOT_AVAILABILITY_UPDATED,
+      {
+        date: bookingDate.toISOString(),
+        timeSlotsCount,
+        updatedAt: new Date().toISOString()
+      }
+    );
+
     // Create notification for the user
     const userNotification = await prisma.notification.create({
       data: {
@@ -263,6 +381,60 @@ export async function updateAppointment(
       throw new Error('User not found');
     }
 
+    // Get the current appointment to compare changes
+    const currentAppointment = await prisma.appointment.findUnique({
+      where: { id: appointmentId }
+    });
+
+    if (!currentAppointment) {
+      throw new Error('Appointment not found');
+    }
+
+    // Normalize the time slot if provided
+    let normalizedTimeSlot: string | undefined;
+    if (data.timeSlot) {
+      normalizedTimeSlot = normalizeTimeSlot(data.timeSlot);
+      console.log(`Update time slot normalized from ${data.timeSlot} to ${normalizedTimeSlot}`);
+    }
+
+    // Check if we're rescheduling (changing date or time)
+    const isRescheduling = 
+      (data.date && data.date.toString() !== currentAppointment.date.toString()) ||
+      (normalizedTimeSlot && normalizedTimeSlot !== currentAppointment.timeSlot);
+
+    // If rescheduling, check capacity for the new time slot
+    if (isRescheduling && data.date && normalizedTimeSlot) {
+      // Don't count the current appointment when checking capacity
+      const bookingDate = new Date(data.date);
+      bookingDate.setHours(0, 0, 0, 0);
+      
+      const endOfDay = new Date(bookingDate);
+      endOfDay.setHours(23, 59, 59, 999);
+
+      // Count other appointments for this time slot
+      const existingAppointments = await prisma.appointment.count({
+        where: {
+          id: { not: appointmentId }, // Exclude the current appointment
+          date: {
+            gte: bookingDate,
+            lte: endOfDay,
+          },
+          timeSlot: normalizedTimeSlot,
+          // Only count active appointments
+          status: {
+            in: ['PENDING', 'SCHEDULED', 'IN_PROGRESS']
+          }
+        }
+      });
+
+      console.log(`Found ${existingAppointments} existing appointments for the new time slot`);
+      
+      // Check if the new time slot is at capacity
+      if (existingAppointments >= 2) {
+        throw new Error('This time slot is already fully booked. Please select a different time.');
+      }
+    }
+
     let price;
     if (data.serviceId) {
       const service = await prisma.service.findUnique({
@@ -279,7 +451,7 @@ export async function updateAppointment(
         ...(data.serviceId && { serviceId: data.serviceId }),
         ...(data.vehicleId && { vehicleId: data.vehicleId }),
         ...(data.date && { date: data.date }),
-        ...(data.timeSlot && { timeSlot: data.timeSlot }),
+        ...(normalizedTimeSlot && { timeSlot: normalizedTimeSlot }),
         ...(data.notes !== undefined && { notes: data.notes }),
         ...(data.status && { status: data.status }),
         ...(data.employeeId !== undefined && { employeeId: data.employeeId }),
@@ -296,9 +468,73 @@ export async function updateAppointment(
       }
     });
 
+    // If the appointment was rescheduled or cancelled, update availability for both dates
+    if (isRescheduling || (data.status && data.status === 'CANCELLED')) {
+      // Get dates that need availability updates
+      const datesToUpdate = new Set<string>();
+      
+      // Add the original appointment date
+      const originalDate = new Date(currentAppointment.date);
+      datesToUpdate.add(originalDate.toISOString().split('T')[0]);
+      
+      // If rescheduling, add the new date
+      if (data.date) {
+        const newDate = new Date(data.date);
+        datesToUpdate.add(newDate.toISOString().split('T')[0]);
+      }
+      
+      // Update availability for each affected date
+      for (const dateStr of datesToUpdate) {
+        const updateDate = new Date(dateStr);
+        updateDate.setHours(0, 0, 0, 0);
+        
+        const updateEndOfDay = new Date(updateDate);
+        updateEndOfDay.setHours(23, 59, 59, 999);
+        
+        // Get all active appointments for this date
+        const dateAppointments = await prisma.appointment.findMany({
+          where: {
+            date: {
+              gte: updateDate,
+              lte: updateEndOfDay,
+            },
+            // Only count active appointments
+            status: {
+              in: ['PENDING', 'SCHEDULED', 'IN_PROGRESS']
+            }
+          },
+          select: {
+            timeSlot: true,
+          }
+        });
+        
+        // Count appointments per time slot
+        const updatedTimeSlotsCount: Record<string, number> = {};
+        
+        dateAppointments.forEach(appt => {
+          const timeSlot = appt.timeSlot;
+          updatedTimeSlotsCount[timeSlot] = (updatedTimeSlotsCount[timeSlot] || 0) + 1;
+        });
+        
+        // Emit event with updated availability
+        const dateChannel = getDateAvailabilityChannel(updateDate);
+        console.log(`Sending availability update to channel: ${dateChannel}`);
+        
+        await pusherServer.trigger(
+          dateChannel,
+          EVENT_TYPES.TIMESLOT_AVAILABILITY_UPDATED,
+          {
+            date: updateDate.toISOString(),
+            timeSlotsCount: updatedTimeSlotsCount,
+            updatedAt: new Date().toISOString()
+          }
+        );
+      }
+    }
+
     return appointment;
   } catch (error) {
     console.error('Error updating appointment:', error);
-    throw new Error('Failed to update appointment');
+    throw new Error(error instanceof Error ? error.message : 'Failed to update appointment');
   }
 } 

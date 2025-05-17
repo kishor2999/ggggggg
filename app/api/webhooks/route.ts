@@ -68,8 +68,7 @@ export async function POST(req: Request) {
         await client.users.updateUserMetadata(userId, {
           publicMetadata: { role: "customer" },
         });
-        console.log(`Assigned role 'customer' to user with ID ${userId}`);
-
+        
         await prisma.user.create({
           data: {
             clerkId: userId,
@@ -80,8 +79,7 @@ export async function POST(req: Request) {
           },
         });
 
-        console.log(`User created in database with Clerk ID ${userId}`);
-      } else if (eventType === "user.updated") {
+              } else if (eventType === "user.updated") {
         const clerkUser = await client.users.getUser(userId);
         if (clerkUser.publicMetadata && clerkUser.publicMetadata.role) {
           role = clerkUser.publicMetadata.role as string; // Directly use the string value
@@ -97,10 +95,7 @@ export async function POST(req: Request) {
           },
         });
 
-        console.log(
-          `User updated in database with Clerk ID ${userId} and role ${role}`
-        );
-      }
+              }
     } catch (error) {
       console.error("Error assigning role or creating user:", error);
       return new Response("Error: Could not assign role or create user", {

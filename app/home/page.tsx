@@ -1,14 +1,14 @@
 "use server";
+import { auth } from "@clerk/nextjs/server";
+import FeaturedProducts from "./components/featured-products";
+import Footer from "./components/footer";
 import Header from "./components/header";
 import HeroSection from "./components/hero-section";
-import FeaturedProducts from "./components/featured-products";
 import Testimonial from "./components/testimonial";
-import Footer from "./components/footer";
-import { auth } from "@clerk/nextjs/server";
 
 export default async function HomePage() {
   // Get user's role from session claims
-  const { sessionClaims } = await auth();
+  const { sessionClaims} = await auth();
 
   // Define metadata type
   type UserMetadata = {
@@ -19,14 +19,15 @@ export default async function HomePage() {
   const metadata = (sessionClaims?.metadata as UserMetadata) || {};
   const role = metadata.role;
 
-  // Check if user is admin
+  // Check if user is admin or employee
   const isAdmin = role === "admin";
+  const isEmployee = role === "employee";
 
   return (
     <>
       <Header />
       <HeroSection />
-      {!isAdmin && <FeaturedProducts />}
+      {!isAdmin && !isEmployee && <FeaturedProducts />}
       <Testimonial />
       <Footer />
     </>

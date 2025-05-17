@@ -333,22 +333,7 @@ export default function AdminNotifications() {
           </Tabs>
         </div>
         
-        <div className="mt-8">
-          <Card>
-            <CardHeader>
-              <CardTitle>Debug Tools</CardTitle>
-              <CardDescription>Tools for testing the notification system</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Button asChild>
-                <a href="/dashboard/admin/debug-notifications">
-                  <Bell className="mr-2 h-4 w-4" />
-                  Open Notification Debug Tools
-                </a>
-              </Button>
-            </CardContent>
-          </Card>
-        </div>
+       
       </div>
     </DashboardLayout>
   );

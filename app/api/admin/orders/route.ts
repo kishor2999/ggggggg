@@ -4,8 +4,7 @@ import { NextResponse } from "next/server";
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
-    console.log("Admin orders API called");
-    
+        
     // IMPORTANT: For demo purposes, we're bypassing the admin check
     // In production, you should check the user role and authorize properly
     
@@ -15,8 +14,7 @@ export async function GET(request: Request) {
     const status = searchParams.get("status") || "ALL";
     const search = searchParams.get("search") || "";
     
-    console.log("Query params:", { page, limit, status, search });
-    
+        
     // Calculate pagination
     const skip = (page - 1) * limit;
     
@@ -58,16 +56,13 @@ export async function GET(request: Request) {
       ];
     }
     
-    console.log("Where clause:", JSON.stringify(where));
-    
+        
     // Count total orders with filters
     const totalOrders = await prisma.order.count({ where });
-    console.log("Total orders count:", totalOrders);
-    
+        
     // Get all orders no matter what (for debugging purposes)
     const allOrdersCount = await prisma.order.count();
-    console.log("Total orders in database (no filters):", allOrdersCount);
-    
+        
     // Get orders
     const orders = await prisma.order.findMany({
       where,
@@ -107,11 +102,8 @@ export async function GET(request: Request) {
       take: limit,
     });
     
-    console.log("Orders found:", orders.length);
-    if (orders.length > 0) {
-      console.log("First order ID:", orders[0].id);
-      console.log("First order belongs to user:", orders[0].user?.name);
-    }
+        if (orders.length > 0) {
+                }
     
     // Serialize Decimal values to avoid Next.js serialization errors
     const serializedOrders = orders.map(order => ({
