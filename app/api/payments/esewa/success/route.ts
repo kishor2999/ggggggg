@@ -215,28 +215,34 @@ export async function GET(request: Request) {
       await prisma.appointment.update({
         where: { id: appointment.id },
         data: {
-          paymentStatus: "PAID"
+          paymentStatus: appointment.paymentType === "HALF" ? "HALF_PAID" : "PAID"
         }
       });
+      
+      // Calculate the actual payment amount based on payment type
+      const paymentAmount = appointment.paymentType === "HALF" 
+        ? parseFloat(appointment.price.toString()) * 0.5
+        : parseFloat(appointment.price.toString());
       
       // Create payment record
       const payment = await prisma.payment.create({
         data: {
           userId: appointment.userId,
           appointmentId: appointment.id,
-          amount: parseFloat(appointment.price.toString()),
+          amount: paymentAmount,
           status: "PAID",
           method: "ESEWA",
           transactionId: responseData.transaction_code || transactionUuid
         }
       });
       
-      // Create notification for the user
+      // Create notification for the user with payment type-specific message
+      const paymentTypeText = appointment.paymentType === "HALF" ? "advance payment (50%)" : "payment";
       const userNotification = await prisma.notification.create({
         data: {
           userId: appointment.userId,
           title: 'Payment Successful',
-          message: `Your payment of Rs${appointment.price} for the ${appointment.service.name} booking has been received. We look forward to serving you!`,
+          message: `Your ${paymentTypeText} of Rs${paymentAmount.toFixed(0)} for the ${appointment.service.name} booking has been received. We look forward to serving you!`,
           type: 'PAYMENT',
           isRead: false
         }
@@ -298,7 +304,7 @@ export async function GET(request: Request) {
           data: {
             userId: admin.id,
             title: 'New Service Booking Payment',
-            message: `${customerName} has paid Rs${appointment.price} for ${appointment.service.name} service on ${appointmentDate}.`,
+            message: `${customerName} has paid Rs${paymentAmount.toFixed(0)} ${appointment.paymentType === "HALF" ? "(50% advance)" : ""} for ${appointment.service.name} service on ${appointmentDate}.`,
             type: 'PAYMENT',
             isRead: false
           }
@@ -328,7 +334,7 @@ export async function GET(request: Request) {
       
       // Also trigger a general admin channel notification
       await pusherServer.trigger(getAdminChannel(), EVENT_TYPES.NEW_NOTIFICATION, {
-        message: `New service booking payment received: Rs${appointment.price}`,
+        message: `New service booking ${appointment.paymentType === "HALF" ? "advance " : ""}payment received: Rs${paymentAmount.toFixed(0)}`,
         appointmentId: appointment.id,
         serviceName: appointment.service.name,
         timestamp: new Date().toISOString()

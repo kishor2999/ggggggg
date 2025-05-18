@@ -383,12 +383,27 @@ export async function updateAppointment(
 
     // Get the current appointment to compare changes
     const currentAppointment = await prisma.appointment.findUnique({
-      where: { id: appointmentId }
+      where: { id: appointmentId },
+      include: {
+        service: true,
+        user: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            clerkId: true
+          }
+        }
+      }
     });
 
     if (!currentAppointment) {
       throw new Error('Appointment not found');
     }
+    
+    // Track if status was changed
+    const statusChanged = data.status && data.status !== currentAppointment.status;
+    const oldStatus = currentAppointment.status;
 
     // Normalize the time slot if provided
     let normalizedTimeSlot: string | undefined;
@@ -464,9 +479,88 @@ export async function updateAppointment(
         service: true,
         vehicle: true,
         employee: true,
-        user: true,
+        user: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            clerkId: true,
+            phoneNumber: true
+          }
+        },
       }
     });
+
+    // If status was changed, send notification to the user
+    if (statusChanged && appointment.user) {
+      // Create notification message based on new status
+      let notificationTitle = 'Booking Status Updated';
+      let notificationMessage = '';
+      
+      const formattedDate = new Date(appointment.date).toLocaleDateString();
+      const formattedTime = appointment.timeSlot;
+      const serviceName = appointment.service?.name || 'service';
+      
+      switch(data.status) {
+        case 'SCHEDULED':
+          notificationMessage = `Your booking for ${serviceName} on ${formattedDate} at ${formattedTime} has been scheduled.`;
+          break;
+        case 'CONFIRMED':
+          notificationMessage = `Your booking for ${serviceName} on ${formattedDate} at ${formattedTime} has been confirmed.`;
+          break;
+        case 'IN_PROGRESS':
+          notificationMessage = `Your car wash service for ${serviceName} on ${formattedDate} at ${formattedTime} is now in progress.`;
+          break;
+        case 'COMPLETED':
+          notificationMessage = `Your car wash service for ${serviceName} on ${formattedDate} at ${formattedTime} has been completed. Your vehicle is ready for pickup. Thank you for your business!`;
+          break;
+        case 'CANCELLED':
+          notificationMessage = `Your booking for ${serviceName} on ${formattedDate} at ${formattedTime} has been cancelled.`;
+          break;
+        default:
+          notificationMessage = `Your booking status has been updated from ${oldStatus} to ${data.status} for your appointment on ${formattedDate}.`;
+      }
+      
+      // Create notification in database
+      const notification = await prisma.notification.create({
+        data: {
+          userId: appointment.userId,
+          title: notificationTitle,
+          message: notificationMessage,
+          type: 'BOOKING',
+          isRead: false
+        }
+      });
+      
+      // Prepare notification data
+      const notificationData = {
+        id: notification.id,
+        title: notification.title,
+        message: notification.message,
+        type: notification.type,
+        createdAt: notification.createdAt,
+        isRead: notification.isRead
+      };
+      
+      // Only send to primary user channel to avoid duplicates
+      // Use the clerk ID if available (since that's what the UI is likely using)
+      if (appointment.user.clerkId) {
+        console.log(`Sending booking status update notification to user channel: ${getUserChannel(appointment.user.clerkId)}`);
+        await pusherServer.trigger(
+          getUserChannel(appointment.user.clerkId),
+          EVENT_TYPES.NEW_NOTIFICATION,
+          notificationData
+        );
+      } else {
+        // Fall back to database user ID if clerk ID is not available
+        console.log(`Sending booking status update notification to user channel: ${getUserChannel(appointment.userId)}`);
+        await pusherServer.trigger(
+          getUserChannel(appointment.userId),
+          EVENT_TYPES.NEW_NOTIFICATION,
+          notificationData
+        );
+      }
+    }
 
     // If the appointment was rescheduled or cancelled, update availability for both dates
     if (isRescheduling || (data.status && data.status === 'CANCELLED')) {

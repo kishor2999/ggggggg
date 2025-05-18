@@ -82,6 +82,7 @@ export default function BookService() {
   });
   const [timeSlotAvailability, setTimeSlotAvailability] = useState<Record<string, number>>({});
   const currentChannelRef = useRef<string | null>(null);
+  const [loadingTimeSlots, setLoadingTimeSlots] = useState(false);
 
   useEffect(() => {
     if (userId) {
@@ -89,6 +90,12 @@ export default function BookService() {
       loadServices();
     }
   }, [userId]);
+
+  useEffect(() => {
+    if (date) {
+      loadTimeSlotAvailability(date);
+    }
+  }, []);
 
   useEffect(() => {
     return () => {
@@ -266,8 +273,11 @@ export default function BookService() {
     try {
       if (!selectedDate) return;
       
+      setLoadingTimeSlots(true);
       const availability = await getTimeSlotAvailability(selectedDate);
       
+      // Log what we received from the server
+      console.log("Time slot availability loaded:", availability);
       
       // Create a normalized version of the availability data that handles both formats
       const normalizedAvailability: Record<string, number> = {};
@@ -309,7 +319,7 @@ export default function BookService() {
         }
       });
       
-      
+      console.log("Normalized availability:", normalizedAvailability);
       setTimeSlotAvailability(normalizedAvailability);
       
       // If the currently selected time slot is fully booked, reset selection
@@ -351,7 +361,7 @@ export default function BookService() {
       
       // Handle availability updates
       channel.bind(EVENT_TYPES.TIMESLOT_AVAILABILITY_UPDATED, (data: any) => {
-       
+        console.log("Real-time update received:", data);
         
         // Normalize the incoming data
         const normalizedUpdate: Record<string, number> = {};
@@ -393,7 +403,7 @@ export default function BookService() {
           }
         });
         
-        
+        console.log("Normalized update:", normalizedUpdate);
         setTimeSlotAvailability(normalizedUpdate);
         
         // If the currently selected time slot is now fully booked, reset selection
@@ -422,10 +432,12 @@ export default function BookService() {
         }
       });
       
-      (`Subscribed to availability updates for date: ${dateChannel}`);
+      console.log(`Subscribed to availability updates for date: ${dateChannel}`);
     } catch (error) {
       console.error("Error loading time slot availability:", error);
       // Don't show an error toast to avoid confusing the user
+    } finally {
+      setLoadingTimeSlots(false);
     }
   };
 
@@ -691,6 +703,9 @@ export default function BookService() {
                       // Reset time slot when date changes to avoid keeping a potentially invalid selection
                       setTimeSlot(null);
                       
+                      // Reset availability data when date changes
+                      setTimeSlotAvailability({});
+                      
                       // Load time slot availability for the new date
                       if (newDate) {
                         loadTimeSlotAvailability(newDate);
@@ -716,87 +731,93 @@ export default function BookService() {
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="grid grid-cols-3 gap-2">
-                    {timeSlots.map((time) => {
-                      // Convert 12-hour format to 24-hour format for database comparison
-                      const convertedTime = time.replace(
-                        /(\d+):(\d+)\s(AM|PM)/,
-                        (match, hour, minute, period) => {
-                          let h = parseInt(hour);
-                          if (period === "PM" && h < 12) h += 12;
-                          if (period === "AM" && h === 12) h = 0;
-                          return `${h.toString().padStart(2, '0')}:${minute}`;
-                        }
-                      );
-                      
-                      // Check if this time slot is already at capacity in either format
-                      const bookingsCount = timeSlotAvailability[time] || timeSlotAvailability[convertedTime] || 0;
-                      const isAtCapacity = bookingsCount >= 2;
-                      
-                      // Check if this time slot is in the past for the current day
-                      let isPastTime = false;
+                  {loadingTimeSlots ? (
+                    <div className="flex justify-center items-center h-48">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-3 gap-2">
+                      {timeSlots.map((time) => {
+                        // Convert 12-hour format to 24-hour format for database comparison
+                        const convertedTime = time.replace(
+                          /(\d+):(\d+)\s(AM|PM)/,
+                          (match, hour, minute, period) => {
+                            let h = parseInt(hour);
+                            if (period === "PM" && h < 12) h += 12;
+                            if (period === "AM" && h === 12) h = 0;
+                            return `${h.toString().padStart(2, '0')}:${minute}`;
+                          }
+                        );
+                        
+                        // Check if this time slot is already at capacity in either format
+                        const bookingsCount = timeSlotAvailability[time] || timeSlotAvailability[convertedTime] || 0;
+                        const isAtCapacity = bookingsCount >= 2;
+                        
+                        // Check if this time slot is in the past for the current day
+                        let isPastTime = false;
 
-                      if (date) {
-                        // Check if selected date is today
-                        const today = new Date();
-                        const isToday = date.getDate() === today.getDate() &&
-                          date.getMonth() === today.getMonth() &&
-                          date.getFullYear() === today.getFullYear();
+                        if (date) {
+                          // Check if selected date is today
+                          const today = new Date();
+                          const isToday = date.getDate() === today.getDate() &&
+                            date.getMonth() === today.getMonth() &&
+                            date.getFullYear() === today.getFullYear();
 
-                        if (isToday) {
-                          // Parse the time slot to check if it's in the past
-                          const matches = time.match(/(\d+):(\d+) ([AP]M)/);
-                          if (matches) {
-                            const [hourStr, minuteStr, period] = matches.slice(1);
-                            let hour = parseInt(hourStr);
-                            const minute = parseInt(minuteStr);
+                          if (isToday) {
+                            // Parse the time slot to check if it's in the past
+                            const matches = time.match(/(\d+):(\d+) ([AP]M)/);
+                            if (matches) {
+                              const [hourStr, minuteStr, period] = matches.slice(1);
+                              let hour = parseInt(hourStr);
+                              const minute = parseInt(minuteStr);
 
-                            // Convert to 24-hour format
-                            if (period === "PM" && hour < 12) {
-                              hour += 12;
-                            } else if (period === "AM" && hour === 12) {
-                              hour = 0;
+                              // Convert to 24-hour format
+                              if (period === "PM" && hour < 12) {
+                                hour += 12;
+                              } else if (period === "AM" && hour === 12) {
+                                hour = 0;
+                              }
+
+                              // Create a date object for this time slot
+                              const timeSlotDate = new Date();
+                              timeSlotDate.setHours(hour, minute, 0, 0);
+
+                              // Compare with current time
+                              isPastTime = timeSlotDate <= today;
                             }
-
-                            // Create a date object for this time slot
-                            const timeSlotDate = new Date();
-                            timeSlotDate.setHours(hour, minute, 0, 0);
-
-                            // Compare with current time
-                            isPastTime = timeSlotDate <= today;
                           }
                         }
-                      }
 
-                      // Determine if the slot should be disabled
-                      const isDisabled = isPastTime || isAtCapacity;
+                        // Determine if the slot should be disabled
+                        const isDisabled = isPastTime || isAtCapacity;
 
-                      return (
-                        <Button
-                          key={time}
-                          variant={timeSlot === time ? "default" : "outline"}
-                          className={cn(
-                            "w-full relative",
-                            isAtCapacity && "bg-gray-100 text-gray-400 hover:bg-gray-100"
-                          )}
-                          onClick={() => setTimeSlot(time)}
-                          disabled={isDisabled}
-                        >
-                          <span>{time}</span>
-                          
-                          {/* Show available spots */}
-                          {!isPastTime && (
-                            <span className={cn(
-                              "absolute bottom-1 right-2 text-[10px]",
-                              isAtCapacity ? "text-red-500" : "text-green-600"
-                            )}>
-                              {isAtCapacity ? "Full" : `${2 - bookingsCount} spots`}
-                            </span>
-                          )}
-                        </Button>
-                      );
-                    })}
-                  </div>
+                        return (
+                          <Button
+                            key={time}
+                            variant={timeSlot === time ? "default" : "outline"}
+                            className={cn(
+                              "w-full relative",
+                              isAtCapacity && "bg-gray-100 text-gray-400 hover:bg-gray-100"
+                            )}
+                            onClick={() => setTimeSlot(time)}
+                            disabled={isDisabled}
+                          >
+                            <span>{time}</span>
+                            
+                            {/* Show available spots */}
+                            {!isPastTime && (
+                              <span className={cn(
+                                "absolute bottom-1 right-2 text-[10px]",
+                                isAtCapacity ? "text-red-500" : "text-green-600"
+                              )}>
+                                {isAtCapacity ? "Full" : `${2 - bookingsCount} spots`}
+                              </span>
+                            )}
+                          </Button>
+                        );
+                      })}
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             </div>
@@ -926,9 +947,7 @@ export default function BookService() {
                         <span>To pay now (50%)</span>
                         <span>
                           Rs
-                          {((selectedServiceDetails?.price || 0) * 0.5).toFixed(
-                            2
-                          )}
+                          {Math.ceil((selectedServiceDetails?.price || 0) * 0.5)}
                         </span>
                       </div>
                     )}
