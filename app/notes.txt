@@ -1,4 +1,0 @@
-// to get the user imageURL
-const userInfo = await currentUser()
- }
-}

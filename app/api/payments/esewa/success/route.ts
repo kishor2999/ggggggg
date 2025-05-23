@@ -3,6 +3,8 @@ import { verifySignature } from "@/lib/esewa-utils";
 import { EVENT_TYPES, getAdminChannel, getUserChannel, pusherServer } from "@/lib/pusher";
 import { NextResponse } from "next/server";
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(request: Request) {
   try {
     // Get URL parameters
