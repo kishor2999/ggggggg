@@ -630,24 +630,17 @@ export default function AdminBookings() {
   const handleDateChange = (date: Date | undefined) => {
     if (!date) return;
     
-    // Fix timezone issue by setting the time to noon and applying timezone offset
-    // This prevents the date from shifting due to timezone conversions
-    const adjustedDate = new Date(date);
+    // Create a new date object to avoid modifying the input date
+    const newDate = new Date(date);
     
-    // First set hours to noon
-    adjustedDate.setHours(12, 0, 0, 0);
+    // Set time to noon to avoid timezone issues
+    newDate.setHours(12, 0, 0, 0);
     
-   
-    // When storing the date, ensure it's consistent with our display logic
-    const userTimezoneOffset = adjustedDate.getTimezoneOffset() * 60000;
-    const finalDate = new Date(adjustedDate.getTime() - userTimezoneOffset);
-    
-   
     // Load time slot availability for the new date
-    loadTimeSlotAvailability(finalDate);
+    loadTimeSlotAvailability(newDate);
     
     setBookingToEdit((prev: Booking | null) =>
-      prev ? { ...prev, date: finalDate } : null
+      prev ? { ...prev, date: newDate } : null
     );
   };
 
@@ -1143,41 +1136,26 @@ export default function AdminBookings() {
                           <div className="grid gap-2">
                             <Label htmlFor="edit-date">Date</Label>
                             <Input
-                                  id="edit-date"
+                              id="edit-date"
                               type="date"
                               value={(() => {
                                 if (!bookingToEdit?.date) return "";
                                 
-                                // Compensate for timezone offset to ensure the date displayed
-                                // is the same as the date selected
+                                // Create a new date object from the booking date
                                 const date = new Date(bookingToEdit.date);
                                 
-                                // First set hours to noon to normalize
-                                date.setHours(12, 0, 0, 0);
-                                
-                                // Then apply timezone offset
-                                const userTimezoneOffset = date.getTimezoneOffset() * 60000;
-                                const adjustedDate = new Date(date.getTime() + userTimezoneOffset);
-                                
-                                
-                                return adjustedDate.toISOString().split('T')[0];
+                                // Format the date as YYYY-MM-DD without timezone adjustments
+                                return date.toISOString().split('T')[0];
                               })()}
                               onChange={(e) => {
                                 if (e.target.value) {
-                                  // When a new date is selected, create a date that preserves
-                                  // the exact date regardless of timezone
+                                  // Create a new date from the selected value
                                   const selectedDate = new Date(e.target.value);
                                   
-                                  // First set hours to noon
+                                  // Set the time to noon to avoid any timezone issues
                                   selectedDate.setHours(12, 0, 0, 0);
                                   
-                                  // Then apply timezone offset
-                                  const userTimezoneOffset = selectedDate.getTimezoneOffset() * 60000;
-                                  const adjustedDate = new Date(selectedDate.getTime() - userTimezoneOffset);
-                                  
-                                  
-                                  
-                                  handleDateChange(adjustedDate);
+                                  handleDateChange(selectedDate);
                                 }
                               }}
                               min={new Date().toISOString().split('T')[0]}
