@@ -635,7 +635,7 @@ export default function AdminBookings() {
     
     // Set time to noon to avoid timezone issues
     newDate.setHours(12, 0, 0, 0);
-    
+   
     // Load time slot availability for the new date
     loadTimeSlotAvailability(newDate);
     
@@ -1136,7 +1136,7 @@ export default function AdminBookings() {
                           <div className="grid gap-2">
                             <Label htmlFor="edit-date">Date</Label>
                             <Input
-                              id="edit-date"
+                                  id="edit-date"
                               type="date"
                               value={(() => {
                                 if (!bookingToEdit?.date) return "";
